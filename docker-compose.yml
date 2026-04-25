@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - FLASK_ENV=development
+      - USE_MOCK_APIS=true
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:8081
+      - DATABASE_URL=sqlite:///marqd.db  # Use SQLite for simple compose, or connect to pg below
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/temp:/app/temp
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    depends_on:
+      - backend
