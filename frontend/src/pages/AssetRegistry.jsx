@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Plus, ShieldCheck, Search, Tag, X, FileText, Film, Lock, Clock, Zap } from 'lucide-react';
+import { Upload, Plus, Search, Tag, X, FileText, Film, Lock, Clock, Zap, Download } from 'lucide-react';
 import api from '../api/axios';
 
 export default function AssetRegistry() {
@@ -8,6 +8,7 @@ export default function AssetRegistry() {
   const [uploading, setUploading] = useState(false);
   const [activeTags, setActiveTags] = useState(['IPL 2025', 'Cricket', 'High-Res']);
   const [tagInput, setTagInput] = useState('');
+  const [downloadStates, setDownloadStates] = useState({});
 
   useEffect(() => {
     fetchAssets();
@@ -54,6 +55,33 @@ export default function AssetRegistry() {
 
   const removeTag = (tag) => {
     setActiveTags(activeTags.filter(t => t !== tag));
+  };
+
+  const handleDownload = async (asset) => {
+    const assetId = asset.id;
+    setDownloadStates(prev => ({ ...prev, [assetId]: 'loading' }));
+    try {
+      const url = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const ext = asset.file_name?.split('.').pop() || 'jpg';
+      const baseName = asset.file_name?.replace(/\.[^.]+$/, '') || 'asset';
+      const filename = `marqd_protected_${baseName}.${ext}`;
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+      setDownloadStates(prev => ({ ...prev, [assetId]: 'done' }));
+      setTimeout(() => setDownloadStates(prev => ({ ...prev, [assetId]: null })), 2000);
+    } catch (err) {
+      console.error('Download error:', err);
+      setDownloadStates(prev => ({ ...prev, [assetId]: null }));
+    }
   };
 
   return (
@@ -177,7 +205,17 @@ export default function AssetRegistry() {
                         <span key={t} className="text-[9px] font-bold text-slate-500 border border-slate-700/50 rounded px-1.5">#{t}</span>
                       ))}
                     </div>
-                    <button className="text-[10px] font-black text-primary uppercase hover:text-white transition-colors underline underline-offset-4">Actions</button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDownload(asset)}
+                        disabled={downloadStates[asset.id] === 'loading'}
+                        className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-1 rounded border border-primary/30 bg-primary/5 text-primary hover:bg-primary/20 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download size={10} />
+                        {downloadStates[asset.id] === 'loading' ? 'Downloading...' : downloadStates[asset.id] === 'done' ? 'Downloaded!' : 'Download'}
+                      </button>
+                      <button className="text-[10px] font-black text-primary uppercase hover:text-white transition-colors underline underline-offset-4">Actions</button>
+                    </div>
                   </div>
                 </div>
               </div>
