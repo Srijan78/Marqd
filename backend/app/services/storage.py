@@ -27,9 +27,10 @@ class StorageService:
         Returns:
             Public URL of the uploaded file
         """
-        credentials_path = current_app.config.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+        env = current_app.config.get("FLASK_ENV", "development")
+        bucket_name = current_app.config.get("GCS_BUCKET_NAME")
 
-        if credentials_path and os.path.exists(credentials_path):
+        if env == "production" and bucket_name:
             return StorageService._upload_to_gcs(local_path, destination_name, content_type)
         else:
             return StorageService._store_locally(local_path, destination_name)
@@ -79,10 +80,10 @@ class StorageService:
     @staticmethod
     def get_upload_url(destination_name: str) -> str:
         """Get the full URL for an uploaded file."""
-        credentials_path = current_app.config.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+        env = current_app.config.get("FLASK_ENV", "development")
+        bucket_name = current_app.config.get("GCS_BUCKET_NAME")
 
-        if credentials_path and os.path.exists(credentials_path):
-            bucket_name = current_app.config["GCS_BUCKET_NAME"]
+        if env == "production" and bucket_name:
             return f"https://storage.googleapis.com/{bucket_name}/{destination_name}"
         else:
             return f"/uploads/{destination_name}"
@@ -91,11 +92,11 @@ class StorageService:
     def delete_file(destination_name: str) -> bool:
         """Delete a file from storage."""
         try:
-            credentials_path = current_app.config.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+            env = current_app.config.get("FLASK_ENV", "development")
+            bucket_name = current_app.config.get("GCS_BUCKET_NAME")
 
-            if credentials_path and os.path.exists(credentials_path):
+            if env == "production" and bucket_name:
                 from google.cloud import storage
-                bucket_name = current_app.config["GCS_BUCKET_NAME"]
                 client = storage.Client()
                 bucket = client.bucket(bucket_name)
                 blob = bucket.blob(destination_name)

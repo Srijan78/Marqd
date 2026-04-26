@@ -14,6 +14,7 @@ from app.models import db
 from app.models.asset import Asset
 from app.models.violation import Violation
 from app.models.scan_log import ScanLog
+from app.models.scan_state import ScanState
 from app.services.serpapi_service import SerpApiService
 from app.services.youtube_service import YouTubeService
 from app.services.verification import VerificationService
@@ -24,30 +25,43 @@ logger = logging.getLogger(__name__)
 
 class ScannerService:
     """Orchestrates the entire scanning and verification process."""
-    
-    scanning_active = False
 
     @staticmethod
     def scan_all_assets() -> dict:
         """Run scan for all embedded assets (intended for APScheduler)."""
-        ScannerService.scanning_active = True
-        
+        state = ScanState.get()
+        if state.is_scanning:
+            logger.warning("Scan already in progress, ignoring duplicate request.")
+            return {"scanned": 0, "details": [], "status": "already_running"}
+
+        # Mark scan as active in DB — survives reloads and container restarts
+        state.is_scanning = True
+        state.stop_requested = False
+        db.session.commit()
+
         assets = Asset.query.filter(Asset.watermark_status.in_(["embedded", "failed"])).all()
         logger.info(f"Starting master scan for {len(assets)} assets")
 
         results = []
-        for asset in assets:
-            if not ScannerService.scanning_active:
-                logger.info("Scan stopped gracefully by user request.")
-                break
-                
-            res = ScannerService.scan_asset(asset)
-            results.append({
-                "asset_id": asset.asset_id,
-                "status": "success" if res else "failed"
-            })
+        try:
+            for asset in assets:
+                # Re-read stop flag from DB so it works across threads and reloads
+                db.session.refresh(state)
+                if state.stop_requested:
+                    logger.info("Stop signal detected in DB. Halting scan gracefully.")
+                    break
 
-        ScannerService.scanning_active = False
+                res = ScannerService.scan_asset(asset)
+                results.append({
+                    "asset_id": asset.asset_id,
+                    "status": "success" if res else "failed"
+                })
+        finally:
+            # Always clear the scanning flag when done, even if an error occurs
+            state.is_scanning = False
+            state.stop_requested = False
+            db.session.commit()
+
         return {"scanned": len(results), "details": results}
 
     @staticmethod
