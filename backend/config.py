@@ -24,10 +24,10 @@ class Config:
     import urllib.parse
     _encoded_pass = urllib.parse.quote_plus(_db_pass)
     
-    if os.getenv("DATABASE_URL"):
-        SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
-    elif _db_instance:
+    if _db_instance:
         SQLALCHEMY_DATABASE_URI = f"postgresql://{_db_user}:{_encoded_pass}@/{_db_name}?host=/cloudsql/{_db_instance}"
+    elif os.getenv("DATABASE_URL"):
+        SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     else:
         SQLALCHEMY_DATABASE_URI = "sqlite:///marqd.db"
 
