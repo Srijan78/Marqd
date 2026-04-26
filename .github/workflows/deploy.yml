@@ -40,6 +40,7 @@ jobs:
             SERPAPI_KEY=${{ secrets.SERPAPI_KEY }}
             YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            CORS_ORIGINS=https://marqd-frontend-691938019192.us-central1.run.app,http://localhost:5173
 
   deploy-frontend:
     needs: deploy-backend
