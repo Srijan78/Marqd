@@ -181,10 +181,18 @@ def delete_asset(asset_db_id):
 
     try:
         # Delete from storage
+        def extract_path(url):
+            if not url:
+                return ""
+            if url.startswith("https://storage.googleapis.com/"):
+                parts = url.split("/")
+                return "/".join(parts[4:])
+            return url.replace("/uploads/", "")
+
         if asset.original_url:
-            StorageService.delete_file(asset.original_url.replace("/uploads/", ""))
+            StorageService.delete_file(extract_path(asset.original_url))
         if asset.watermarked_url:
-            StorageService.delete_file(asset.watermarked_url.replace("/uploads/", ""))
+            StorageService.delete_file(extract_path(asset.watermarked_url))
 
         db.session.delete(asset)
         db.session.commit()

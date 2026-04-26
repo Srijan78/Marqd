@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Plus, Search, Tag, X, FileText, Film, Lock, Clock, Zap, Download } from 'lucide-react';
+import { Upload, Plus, Search, Tag, X, FileText, Film, Lock, Clock, Zap, Download, Trash2 } from 'lucide-react';
 import api from '../api/axios';
 
 export default function AssetRegistry() {
@@ -83,6 +83,18 @@ export default function AssetRegistry() {
     } catch (err) {
       console.error('Download error:', err);
       setDownloadStates(prev => ({ ...prev, [assetId]: null }));
+    }
+  };
+
+  const handleDelete = async (assetId) => {
+    if (!window.confirm("Are you sure you want to completely delete this asset from the database and Google Cloud Storage?")) return;
+    
+    try {
+      await api.delete(`/assets/${assetId}`);
+      fetchAssets();
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete asset');
     }
   };
 
@@ -216,7 +228,13 @@ export default function AssetRegistry() {
                         <Download size={10} />
                         {downloadStates[asset.id] === 'loading' ? 'Downloading...' : downloadStates[asset.id] === 'done' ? 'Downloaded!' : 'Download'}
                       </button>
-                      <button className="text-[10px] font-black text-primary uppercase hover:text-white transition-colors underline underline-offset-4">Actions</button>
+                      <button 
+                        onClick={() => handleDelete(asset.id)}
+                        className="text-[10px] font-black text-crimson/80 uppercase hover:text-crimson transition-colors flex items-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>
