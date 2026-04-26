@@ -7,7 +7,7 @@ Covers YouTube videos and Shorts even before Google indexes them.
 """
 import os
 import logging
-import subprocess
+import requests
 import tempfile
 from datetime import datetime, timezone, timedelta
 from flask import current_app
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class YouTubeService:
-    """Handles YouTube Data API search and yt-dlp frame extraction."""
+    """Handles YouTube Data API search and thumbnail extraction."""
 
     @staticmethod
     def search_videos(keywords: str, published_after: str = None) -> list[dict]:
@@ -119,7 +119,7 @@ class YouTubeService:
     @staticmethod
     def extract_frames(video_id: str, max_frames: int = 5) -> list[str]:
         """
-        Extract keyframes from a YouTube video using yt-dlp.
+        Extract keyframes from a YouTube video by downloading thumbnails.
 
         Args:
             video_id: YouTube video ID
@@ -160,36 +160,38 @@ class YouTubeService:
 
     @staticmethod
     def _real_extract_frames(video_id: str, max_frames: int = 5) -> list[str]:
-        """Extract real frames from YouTube using yt-dlp + ffmpeg."""
+        """Extract real frames from YouTube using direct thumbnail downloads."""
         try:
             temp_dir = current_app.config["TEMP_FOLDER"]
             os.makedirs(temp_dir, exist_ok=True)
 
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            output_template = os.path.join(temp_dir, f"frame_{video_id}_%(autonumber)s.jpg")
-
-            # Use yt-dlp to download and extract frames
-            cmd = [
-                "yt-dlp",
-                "--skip-download",
-                "--write-thumbnail",
-                "-o", output_template,
-                video_url,
+            thumbnail_urls = [
+                f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+                f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+                f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
+                f"https://img.youtube.com/vi/{video_id}/1.jpg",
+                f"https://img.youtube.com/vi/{video_id}/2.jpg",
+                f"https://img.youtube.com/vi/{video_id}/3.jpg",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-
-            if result.returncode != 0:
-                logger.warning(f"yt-dlp frame extraction had issues: {result.stderr[:200]}")
-
-            # Collect extracted frame files
             frame_paths = []
-            for f in os.listdir(temp_dir):
-                if f.startswith(f"frame_{video_id}_") and f.endswith((".jpg", ".png", ".webp")):
-                    frame_paths.append(os.path.join(temp_dir, f))
+            
+            for i, url in enumerate(thumbnail_urls):
+                if len(frame_paths) >= max_frames:
+                    break
+                    
+                try:
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        path = os.path.join(temp_dir, f"frame_{video_id}_{i}.jpg")
+                        with open(path, 'wb') as f:
+                            f.write(response.content)
+                        frame_paths.append(path)
+                except Exception as req_e:
+                    logger.warning(f"Failed to download thumbnail {url}: {req_e}")
 
-            logger.info(f"Extracted {len(frame_paths)} frames from {video_id}")
-            return frame_paths[:max_frames]
+            logger.info(f"Extracted {len(frame_paths)} frames from {video_id} via thumbnails")
+            return frame_paths
 
         except Exception as e:
             logger.error(f"Frame extraction failed for {video_id}: {e}")

@@ -77,19 +77,55 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const handleScan = async () => {
+  // Poll for scan status
+  useEffect(() => {
+    let interval;
+    if (scanning) {
+      interval = setInterval(async () => {
+        try {
+          const res = await api.get('/scans');
+          if (res.data.is_scanning === false) {
+            setScanning(false);
+            // Refresh data when scan naturally completes
+            const [assetsRes, violationsRes] = await Promise.all([
+              api.get('/assets'),
+              api.get('/violations')
+            ]);
+            const assets = assetsRes.data.assets || [];
+            const violations = violationsRes.data.violations || [];
+            setStats({
+              totalAssets: assets.length,
+              totalViolations: violations.length,
+              activeThreats: violations.filter(v => v.status === 'detected').length,
+              takedowns: violations.filter(v => v.status === 'dmca_sent').length
+            });
+            setRecentViolations(violations.slice(0, 6));
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [scanning]);
+
+  const handleScan = () => {
     setScanning(true);
-    try {
-      await api.post('/scans/trigger');
-      alert('Global scan triggered successfully.');
-      // Refresh data
-      const violationsRes = await api.get('/violations');
-      setRecentViolations(violationsRes.data.violations?.slice(0, 6) || []);
-    } catch (err) {
+    // Fire and forget, polling will handle the completion state
+    api.post('/scans/trigger').catch(err => {
       console.error('Failed to trigger scan:', err);
-      alert('Scan failed.');
-    } finally {
       setScanning(false);
+      alert('Scan failed to start.');
+    });
+  };
+
+  const handleStopScan = async () => {
+    try {
+      await api.post('/scans/stop');
+      setScanning(false);
+      alert('Scan stopped');
+    } catch (err) {
+      console.error('Failed to stop scan:', err);
     }
   };
 
@@ -108,14 +144,23 @@ export default function Dashboard() {
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active Credits</span>
             <span className="text-sm font-black text-white">42,900 / 50,000</span>
           </div>
-          <button 
-            className="btn-primary"
-            onClick={handleScan}
-            disabled={scanning}
-          >
-            <Activity size={18} className={scanning ? "animate-spin" : ""} />
-            {scanning ? "Scanning..." : "Run Global Scan"}
-          </button>
+          {scanning ? (
+            <button 
+              className="btn-primary bg-crimson hover:bg-crimson/80 border-crimson/50 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse"
+              onClick={handleStopScan}
+            >
+              <AlertTriangle size={18} />
+              Stop Scan
+            </button>
+          ) : (
+            <button 
+              className="btn-primary"
+              onClick={handleScan}
+            >
+              <Activity size={18} />
+              Run Global Scan
+            </button>
+          )}
         </div>
       </div>
 

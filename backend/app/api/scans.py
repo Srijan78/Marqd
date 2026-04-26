@@ -43,9 +43,23 @@ def trigger_scan_single(asset_db_id):
     })
 
 
+@scans_bp.route("/scans/stop", methods=["POST"])
+def stop_scan():
+    """Gracefully stop an ongoing master scan."""
+    from app.services.scanner import ScannerService
+    
+    if not ScannerService.scanning_active:
+        return jsonify({"message": "No scan is currently running", "status": "ignored"}), 200
+        
+    ScannerService.scanning_active = False
+    return jsonify({"message": "Stop signal sent. Scan will finish the current asset and halt.", "status": "stopping"})
+
+
 @scans_bp.route("/scans", methods=["GET"])
 def get_scan_history():
-    """Get scan history with API usage breakdown."""
+    """Get scan history with API usage breakdown and current scan status."""
+    from app.services.scanner import ScannerService
+    
     logs = ScanLog.query.order_by(ScanLog.scanned_at.desc()).limit(100).all()
 
     # Aggregate stats
@@ -54,6 +68,7 @@ def get_scan_history():
 
     return jsonify({
         "count": len(logs),
+        "is_scanning": ScannerService.scanning_active,
         "scan_logs": [l.to_dict() for l in logs],
         "usage_summary": {
             "serpapi_units_used": total_serpapi_units,
