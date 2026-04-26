@@ -87,7 +87,16 @@ class ScannerService:
                     asset_id=asset.id, channel="youtube", status="completed"
                 ).order_by(ScanLog.scanned_at.desc()).first()
 
-                pub_after = last_scan.scanned_at.isoformat() if last_scan else None
+                if last_scan and last_scan.scanned_at:
+                    # YouTube API requires RFC 3339 format (must end with 'Z')
+                    dt = last_scan.scanned_at
+                    if dt.tzinfo is None:
+                        pub_after = dt.isoformat() + "Z"
+                    else:
+                        # If it has a timezone, convert to UTC and add Z
+                        pub_after = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                else:
+                    pub_after = None
                 youtube_results = YouTubeService.search_videos(asset.keywords, pub_after)
 
                 # Log YouTube usage (approx 100 units per search query)
