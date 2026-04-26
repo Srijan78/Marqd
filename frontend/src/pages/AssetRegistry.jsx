@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Plus, ShieldCheck, Search, Tag, X, FileText, Film, Lock, Clock, Zap } from 'lucide-react';
 import api from '../api/axios';
 
 export default function AssetRegistry() {
+  const fileInputRef = useRef(null);
   const [assets, setAssets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [activeTags, setActiveTags] = useState(['IPL 2025', 'Cricket', 'High-Res']);
@@ -62,7 +63,7 @@ export default function AssetRegistry() {
           <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Asset Registry</h1>
           <p className="text-slate-500 font-medium mt-1">Register and watermark official media for global tracking.</p>
         </div>
-        <button className="btn-primary" onClick={() => fetchAssets()}>
+        <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
           <Plus size={18} />
           Register New Asset
         </button>
@@ -87,7 +88,7 @@ export default function AssetRegistry() {
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Drop Official Media</h3>
             <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Supports UHD JPG, PNG, MP4 (Max 500MB)</p>
-            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} />
+            <input type="file" ref={fileInputRef} className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} />
           </div>
 
           <div className="glass-card p-6">

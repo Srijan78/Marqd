@@ -77,10 +77,7 @@ const AppLayout = ({ children }) => {
       {/* Sidebar */}
       <aside className={`w-64 bg-[#0D1117] border-r border-border-base flex flex-col h-screen fixed md:relative z-50 transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-8 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-[0_0_15px_rgba(108,99,255,0.4)]">
-            <Shield size={18} className="text-white" />
-          </div>
-          <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">Marqd</h1>
+          <img src="/logo.png" alt="Marqd Logo" className="h-10 w-auto object-contain drop-shadow-[0_0_15px_rgba(108,99,255,0.4)]" />
         </div>
 
         <nav className="flex-1 py-4 flex flex-col">
