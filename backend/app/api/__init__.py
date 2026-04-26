@@ -16,3 +16,26 @@ def register_blueprints(app):
     app.register_blueprint(violations_bp, url_prefix="/api")
     app.register_blueprint(reports_bp, url_prefix="/api")
     app.register_blueprint(propagation_bp, url_prefix="/api")
+
+    from flask import request, jsonify
+
+    @app.before_request
+    def require_api_key():
+        # Exempt preflight requests
+        if request.method == "OPTIONS":
+            return
+            
+        # Only protect /api/ routes
+        if not request.path.startswith("/api/"):
+            return
+            
+        # Exempt health check and public media uploads path
+        exempt_paths = ["/api/health", "/api/uploads/"]
+        for path in exempt_paths:
+            if request.path.startswith(path):
+                return
+                
+        # Check API Key
+        api_key = request.headers.get("X-API-Key")
+        if not api_key or api_key != app.config.get("API_KEY"):
+            return jsonify({"error": "Unauthorized. Invalid or missing X-API-Key header."}), 401

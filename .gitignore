@@ -50,3 +50,14 @@ frontend/build/
 *.db
 backend/marqd.db
 backend/instance/
+
+# Temporary Testing Assets
+backend/*.jpg
+backend/*.png
+backend/*.webp
+backend/*.mp4
+!backend/assets/  # (If you ever add a default assets folder, keep it)
+
+# Generated Audit Reports
+PROJECT_SUMMARY.md
+SECURITY_AUDIT.md

@@ -21,6 +21,27 @@ export default function AssetRegistry() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('keywords', activeTags.join(','));
+
+    try {
+      await api.post('/assets', formData);
+      fetchAssets();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || err.message;
+      console.error('Upload failed:', errorMsg);
+      alert('Upload failed: ' + errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleAddTag = (e) => {
     if (e.key === 'Enter' && tagInput.trim()) {
       if (!activeTags.includes(tagInput.trim())) {
@@ -66,7 +87,7 @@ export default function AssetRegistry() {
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Drop Official Media</h3>
             <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Supports UHD JPG, PNG, MP4 (Max 500MB)</p>
-            <input type="file" className="hidden" />
+            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} />
           </div>
 
           <div className="glass-card p-6">
@@ -115,9 +136,9 @@ export default function AssetRegistry() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {assets.map((asset) => (
-              <div key={asset.filename} className="glass-card overflow-hidden group">
+              <div key={asset.id} className="glass-card overflow-hidden group">
                 <div className="aspect-video bg-[#0D1117] relative">
-                  <img src={asset.url || '/placeholder.jpg'} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
+                  <img src={`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
                   <div className="absolute top-3 left-3">
                     <div className="badge bg-background/80 backdrop-blur-md text-white border-white/10 px-3">
                       {asset.asset_type === 'video' ? <Film size={12} /> : <FileText size={12} />}
@@ -132,8 +153,8 @@ export default function AssetRegistry() {
                 </div>
                 <div className="p-4 space-y-3">
                   <div>
-                    <h3 className="text-sm font-bold text-white truncate">{asset.filename}</h3>
-                    <p className="text-[10px] font-mono text-slate-400 uppercase mt-1 tracking-tight">ID: {asset.asset_id || 'ASSET_PRO_9821'}</p>
+                    <h3 className="text-sm font-bold text-white truncate">{asset.file_name}</h3>
+                    <p className="text-[10px] font-mono text-slate-400 uppercase mt-1 tracking-tight">ID: {asset.asset_id}</p>
                   </div>
                   
                   <div className="flex items-center justify-between py-3 border-y border-border-base">
@@ -142,16 +163,16 @@ export default function AssetRegistry() {
                       <p className="text-[11px] font-mono text-primary-bright mt-0.5">{asset.phash?.slice(0, 16)}...</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[9px] font-bold text-slate-500 uppercase">Last Scan</p>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase">Created</p>
                       <div className="flex items-center justify-end gap-1 text-[11px] font-bold text-white mt-0.5">
-                        <Clock size={10} className="text-slate-500" /> 2h ago
+                        <Clock size={10} className="text-slate-500" /> {new Date(asset.created_at).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 justify-between">
                     <div className="flex gap-1 overflow-hidden">
-                      {activeTags.slice(0, 2).map(t => (
+                      {(asset.keywords || []).slice(0, 3).map(t => (
                         <span key={t} className="text-[9px] font-bold text-slate-500 border border-slate-700/50 rounded px-1.5">#{t}</span>
                       ))}
                     </div>

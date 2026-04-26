@@ -41,6 +41,10 @@ def create_app(config_override=None):
     # Register API blueprints
     register_blueprints(app)
 
+    # Initialize APScheduler background jobs
+    from app.scheduler.jobs import init_scheduler
+    init_scheduler(app)
+
     # Health check route
     @app.route("/api/health")
     def health():

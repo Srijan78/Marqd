@@ -27,7 +27,7 @@ export default function ScanHistory() {
     setLoading(true);
     try {
       const res = await api.get('/scans');
-      setScans(res.data.scans || []);
+      setScans(res.data.scan_logs || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -79,11 +79,11 @@ export default function ScanHistory() {
             </thead>
             <tbody className="divide-y divide-border-base">
               {scans.map((scan) => (
-                <tr key={scan.scan_id} className="hover:bg-white/[0.02] transition-colors group">
+                <tr key={scan.id} className="hover:bg-white/[0.02] transition-colors group">
                   <td className="px-6 py-4">
                      <div className="flex items-center gap-3">
                         <Activity size={14} className="text-primary" />
-                        <span className="text-xs font-mono font-bold text-white uppercase">{scan.scan_id || 'SCN_88291'}</span>
+                        <span className="text-xs font-mono font-bold text-white uppercase">{scan.id?.slice(0, 8)}</span>
                      </div>
                   </td>
                   <td className="px-6 py-4">
@@ -95,15 +95,15 @@ export default function ScanHistory() {
                   <td className="px-6 py-4">
                      <div className="flex items-center gap-2">
                         <Globe size={14} className="text-slate-500" />
-                        <span className="text-[10px] font-black text-slate-300 uppercase">WEB_CRAWLER_V2</span>
+                        <span className="text-[10px] font-black text-slate-300 uppercase">{scan.channel}</span>
                      </div>
                   </td>
                   <td className="px-6 py-4">
-                    <StatusTag status={scan.status} />
+                    <StatusTag status={scan.violations_found > 0 ? 'RISK' : 'CLEAN'} />
                   </td>
                   <td className="px-6 py-4">
                      <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-                        <Clock size={12} /> {new Date(scan.timestamp).toLocaleString()}
+                        <Clock size={12} /> {new Date(scan.scanned_at).toLocaleString()}
                      </div>
                   </td>
                   <td className="px-6 py-4 text-right">

@@ -42,12 +42,22 @@ export default function Violations() {
     }
   };
 
-  const handleGenerateDmca = (id) => {
+  const handleGenerateDmca = async (id) => {
     setGeneratingDmca(id);
-    setTimeout(() => {
-      setGeneratingDmca(null);
+    try {
+      const res = await api.post(`/reports/dmca/${id}`);
       setViolations(prev => prev.map(v => v.id === id ? { ...v, status: 'dmca_sent' } : v));
-    }, 2000);
+      
+      if (res.data.report_url) {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api';
+        window.open(`${baseUrl}${res.data.report_url}`, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to generate DMCA:', err);
+      alert('Failed to generate DMCA report.');
+    } finally {
+      setGeneratingDmca(null);
+    }
   };
 
   const filtered = violations.filter(v => {
@@ -116,9 +126,10 @@ export default function Violations() {
                 <div className="md:w-80 flex shrink-0 h-48 md:h-auto">
                    <div className="flex-1 relative group overflow-hidden bg-surface-card">
                       <img 
-                        src={v.original_asset_url || '/placeholder.jpg'} 
+                        src={v.original_asset?.original_url ? `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${v.original_asset.original_url}` : '/placeholder.jpg'} 
                         alt="Original" 
                         className="w-full h-full object-cover grayscale opacity-30 transition-all group-hover:grayscale-0 group-hover:opacity-100" 
+                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/0D1117/4A5568?text=Mock+Data'; }}
                       />
                       <div className="absolute top-2 left-2 badge bg-emerald/20 text-emerald border-emerald/20 text-[8px] font-black">ORIGINAL</div>
                    </div>
@@ -127,9 +138,10 @@ export default function Violations() {
                    </div>
                    <div className="flex-1 relative group overflow-hidden bg-surface-card">
                       <img 
-                        src={v.thumbnail_url || v.infringing_url || '/placeholder.jpg'} 
+                        src={v.thumbnail_url ? (v.thumbnail_url.startsWith('http') ? v.thumbnail_url : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${v.thumbnail_url}`) : '/placeholder.jpg'} 
                         alt="Infringing" 
                         className="w-full h-full object-cover transition-all" 
+                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/0D1117/4A5568?text=Mock+Data'; }}
                       />
                       <div className="absolute top-2 right-2 badge bg-crimson/20 text-crimson border-crimson/20 text-[8px] font-black">INFRINGING</div>
                       {v.platform?.includes('youtube') && (
@@ -169,9 +181,9 @@ export default function Violations() {
 
                    <div className="flex-1 p-4 bg-background rounded-xl border border-border-base mb-6">
                       <div className="flex items-center gap-2 mb-2">
-                         <div className={`w-2 h-2 rounded-full ${v.classification === 'VIOLATION' ? 'bg-crimson' : 'bg-amber'}`}></div>
-                         <span className={`text-[10px] font-black uppercase tracking-widest ${v.classification === 'VIOLATION' ? 'text-crimson' : 'text-amber'}`}>
-                            Gemini AI: {v.classification}
+                         <div className={`w-2 h-2 rounded-full ${v.classification?.toLowerCase() === 'violation' ? 'bg-crimson' : 'bg-amber'}`}></div>
+                         <span className={`text-[10px] font-black uppercase tracking-widest ${v.classification?.toLowerCase() === 'violation' ? 'text-crimson' : 'text-amber'}`}>
+                            Gemini AI: {v.classification?.toUpperCase() || 'UNCLASSIFIED'}
                          </span>
                       </div>
                       <p className="text-xs text-slate-400 italic leading-relaxed">

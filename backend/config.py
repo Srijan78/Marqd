@@ -10,6 +10,7 @@ load_dotenv()
 class Config:
     """Base configuration."""
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-fallback-key")
+    API_KEY = os.getenv("API_KEY")
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5173")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -31,7 +32,7 @@ class Config:
 
     # App settings
     USE_MOCK_APIS = os.getenv("USE_MOCK_APIS", "true").lower() == "true"
-    SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "6"))
+    SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "24"))
 
     # File uploads
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")

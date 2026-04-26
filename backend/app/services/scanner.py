@@ -207,7 +207,7 @@ class ScannerService:
                     confidence_score=best_confidence,
                     watermark_match=wm_match,
                     phash_distance=best_phash,
-                    classification="VIOLATION",  # YouTube re-uploads are generally violations
+                    classification="violation",  # YouTube re-uploads are generally violations
                     classification_reason=f"Unauthorized re-upload on channel: {result.get('channel_title')}",
                     thumbnail_url=result.get("thumbnail"),
                     video_id=video_id,

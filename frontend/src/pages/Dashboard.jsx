@@ -48,6 +48,7 @@ export default function Dashboard() {
     takedowns: 0
   });
   const [recentViolations, setRecentViolations] = useState([]);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,6 +77,22 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      await api.post('/scans/trigger');
+      alert('Global scan triggered successfully.');
+      // Refresh data
+      const violationsRes = await api.get('/violations');
+      setRecentViolations(violationsRes.data.violations?.slice(0, 6) || []);
+    } catch (err) {
+      console.error('Failed to trigger scan:', err);
+      alert('Scan failed.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-10 animate-slide-up">
       <div className="flex justify-between items-end">
@@ -93,10 +110,11 @@ export default function Dashboard() {
           </div>
           <button 
             className="btn-primary"
-            onClick={() => navigate('/assets')}
+            onClick={handleScan}
+            disabled={scanning}
           >
-            <Activity size={18} />
-            Run Global Scan
+            <Activity size={18} className={scanning ? "animate-spin" : ""} />
+            {scanning ? "Scanning..." : "Run Global Scan"}
           </button>
         </div>
       </div>
@@ -204,15 +222,15 @@ export default function Dashboard() {
                 {recentViolations.map((v) => (
                   <div key={v.id} className="p-4 rounded-xl bg-[#0D1117] border border-border-base hover:border-primary/40 transition-all group cursor-pointer">
                     <div className="flex justify-between items-start mb-3">
-                      <div className={`badge ${v.platform === 'YouTube' ? 'bg-crimson/10 text-crimson border-crimson/20' : 'bg-slate-400/10 text-slate-400 border-slate-400/20'}`}>
-                        {v.platform === 'YouTube' ? <Play size={10} /> : <Globe size={10} />}
-                        {v.platform}
+                      <div className={`badge ${v.platform?.toLowerCase() === 'youtube' ? 'bg-crimson/10 text-crimson border-crimson/20' : 'bg-slate-400/10 text-slate-400 border-slate-400/20'}`}>
+                        {v.platform?.toLowerCase() === 'youtube' ? <Play size={10} /> : <Globe size={10} />}
+                        {v.platform?.toUpperCase()}
                       </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">{v.timestamp?.split('T')[1].slice(0, 5) || '14:20'}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">{v.detected_at?.split('T')[1].slice(0, 5) || '14:20'}</span>
                     </div>
                     <div className="flex gap-3">
                       <div className="w-12 h-12 rounded-lg bg-surface-hover shrink-0 overflow-hidden border border-border-base">
-                        <img src={v.infringing_url || '/placeholder.jpg'} alt="" className="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
+                        <img src={v.thumbnail_url ? (v.thumbnail_url.startsWith('http') ? v.thumbnail_url : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${v.thumbnail_url}`) : '/placeholder.jpg'} alt="" className="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-white truncate group-hover:text-primary transition-colors">{v.domain || 'YouTube Channel'}</p>

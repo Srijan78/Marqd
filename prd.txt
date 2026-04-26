@@ -1,0 +1,665 @@
+PRODUCT REQUIREMENTS DOCUMENT
+Marqd
+Digital Asset Protection Platform for Sports Media
+Hackathon:
+Google Solution Challenge 2026
+Track:
+Digital Asset Protection
+Version:
+2.0
+Date:
+April 2026
+1. Product Overview
+1.1 Problem Statement
+Sports organizations generate massive volumes of high-value digital media — match photographs, official highlight clips, broadcast stills — that scatter across global platforms within minutes of publication. This creates a critical visibility gap: proprietary content is widely misappropriated, redistributed without authorization, and monetized by third parties while rights owners have no reliable mechanism to detect, track, or act on these violations.
+Track Objective
+Develop a scalable, innovative solution to identify, track, and flag unauthorized use or misappropriation of official sports media across the internet. Enable organizations to proactively authenticate their digital assets and detect anomalies in content propagation in near real-time.
+1.2 Solution — Marqd
+Marqd is a three-layer content intelligence platform that addresses the problem end-to-end:
+Layer
+Name
+What It Does
+Layer 1
+Authentication
+Embeds an invisible cryptographic watermark into every asset before publication
+Layer 2
+Discovery
+Combines SerpApi reverse image search + YouTube Data API to find assets across the web and inside YouTube videos
+Layer 3
+Intelligence
+Maps propagation patterns and uses Gemini AI to classify violations and generate DMCA reports
+1.3 Key Differentiators
+Proactive watermarking — ownership proof travels with every asset everywhere
+Dual discovery engine — SerpApi covers the entire indexed web, YouTube Data API covers YouTube and Shorts
+Video frame extraction — yt-dlp pulls keyframes from YouTube videos for watermark verification
+Gemini AI domain classification — distinguishes authorized syndication from piracy
+Auto-generated DMCA reports — legally actionable output in one click
+Propagation anomaly detection — flags abnormal spread velocity and unexpected domains
+Deployed entirely on Google Cloud — Cloud Run, Cloud SQL, Cloud Storage
+2. Technology Stack
+2.1 Complete Stack Overview
+Category
+Technology
+Purpose
+Cost
+Frontend
+React 18 + TailwindCSS
+Dashboard UI
+Free
+Frontend
+Leaflet.js
+Propagation world map
+Free (OSS)
+Backend
+Flask (Python 3.11)
+REST API server
+Free
+Watermarking
+blind_watermark
+Invisible asset fingerprinting
+Free (OSS)
+Video Processing
+opencv-python + video-invisible-watermark
+Frame extraction & video watermarking
+Free (OSS)
+Video Download
+yt-dlp
+Download YouTube video frames for analysis
+Free (OSS)
+Image Hashing
+imagehash + Pillow
+Perceptual hash generation
+Free (OSS)
+Discovery — Web
+SerpApi — Google Reverse Image
+Find assets across entire indexed web
+250/month free
+Discovery — YouTube
+YouTube Data API v3
+Search new YouTube uploads by keyword
+10,000 units/day free
+AI — Classification
+Gemini 3.1 Flash Lite API
+Classify domains, detect anomalies
+Free tier
+AI — Reports
+Gemini 3.1 Flash Lite API
+Generate DMCA takedown notices
+Free tier
+PDF Generation
+reportlab
+DMCA report PDF output
+Free (OSS)
+Scheduling
+APScheduler
+Background scan jobs every 6 hours
+Free (OSS)
+Database
+Cloud SQL (PostgreSQL 15)
+Asset registry, violations, scan history
+Free trial credits
+Asset Storage
+Google Cloud Storage
+Host watermarked assets for scan URLs
+Free tier 5GB
+Backend Hosting
+Google Cloud Run
+Containerized Flask deployment
+Free tier
+Frontend Hosting
+Google Cloud Run (nginx)
+Containerized React deployment
+Free tier
+Container Registry
+Google Artifact Registry
+Store Docker images
+Free tier
+2.2 Google AI Integration
+The hackathon submission requires mandatory Google AI integration. Marqd integrates Gemini 3.1 Flash Lite in two meaningful, non-decorative ways:
+DMCA Report Generation
+When a violation is confirmed, violation metadata is sent to Gemini with a structured prompt. Gemini generates a professionally worded, legally formatted DMCA takedown notice — far superior to a hardcoded template.
+prompt = f"""
+Generate a formal DMCA takedown notice with the following details:
+- Rights Owner: {org_name}
+- Original Asset ID: {asset_id}
+- Infringing URL: {violation_url}
+- Detection Date: {date}
+- Proof of Ownership: Watermark ID "{watermark_id}" extracted from infringing content
+Format as a professional legal document.
+"""
+Domain Classification & Anomaly Detection
+After SerpApi and YouTube Data API return results, those URLs are sent to Gemini for classification. Gemini categorizes each domain as: Authorized (official partners, news agencies), Suspicious (unknown blogs, aggregators), or Violation (piracy sites, unauthorized redistributors).
+prompt = f"""
+Classify each of these URLs for an official sports media asset.
+Categories: AUTHORIZED | SUSPICIOUS | VIOLATION
+Context: Asset belongs to {org_name}, authorized on {authorized_domains}
+URLs: {url_list}
+Return JSON: [{"url": "...", "category": "...", "reason": "..."}]
+"""
+2.3 YouTube Data API Integration
+YouTube Data API v3 is used to actively search for new uploads containing stolen sports content. Unlike SerpApi which finds indexed web pages, YouTube API searches inside YouTube's own video database — covering YouTube videos, Shorts, and newly uploaded content before Google indexes them.
+How It Works
+Each registered asset has associated search keywords (e.g. team name, match name, player name, event)
+Every 6 hours, the scanner searches those keywords via YouTube Data API
+New videos matching those keywords are returned with video IDs and metadata
+yt-dlp downloads keyframes from suspicious videos at low resolution
+Watermark decoder runs on extracted frames — if asset ID found, confirmed violation
+from googleapiclient.discovery import build
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+# Search for new uploads matching asset keywords
+response = youtube.search().list(
+    q=asset_keywords,
+    part='snippet',
+    type='video',
+    order='date',              # Most recent first
+    publishedAfter=last_scan_timestamp,  # Only new uploads
+    maxResults=25
+).execute()
+# Extract frames using yt-dlp and decode watermark
+# yt-dlp --extract-frames --frame-interval 30 {video_url}
+YouTube API Quota Usage
+YouTube Data API v3 gives 10,000 free units per day. A search request costs 100 units, video detail lookup costs 1 unit. At 100 search requests per day you can cover 100 keyword searches — more than enough for a focused set of registered assets.
+2.4 API Rate Limits Reference
+Service
+Free Limit
+Hackathon Usage
+Status
+SerpApi Reverse Image
+250 searches/month
+~50 real calls (rest mocked in dev)
+Safe
+YouTube Data API v3
+10,000 units/day (100 searches)
+~20-30 searches per scan cycle
+Safe
+Gemini 3.1 Flash Lite
+500 RPD, 15 RPM
+~30-40 calls during demo
+Safe
+Cloud Run
+2M requests/month
+Negligible
+Safe
+Cloud Storage
+5GB storage
+< 100MB assets
+Safe
+Cloud SQL
+Covered by $300 credit
+Minimal queries
+Safe
+Development Strategy
+During development, use hardcoded mock responses for SerpApi, YouTube API, and Gemini API calls. Save all real API credits for demo day and final testing only. For SerpApi, register with multiple Google accounts if additional quota is needed (each account gets 250 free searches). YouTube API quota resets daily so it is less of a concern.
+3. Core Features
+3.1 Asset Registration & Watermarking
+Sports org uploads official media through the dashboard. Before the asset is stored or distributed, Marqd embeds an invisible unique watermark using the blind_watermark library (DWT+DCT frequency-domain embedding). The watermark carries a unique Asset ID (e.g., IPL_2025_FINAL_IMG_047) that is stored in the database alongside asset metadata.
+Supports images (JPG, PNG, WebP) and video (MP4, MOV)
+For video: watermark embedded per-frame using video-invisible-watermark
+Org assigns search keywords per asset for YouTube monitoring
+Watermarked version uploaded to Cloud Storage for use as SerpApi scan URL
+Original unwatermarked asset stored separately
+pHash also generated for each asset as secondary fingerprint
+3.2 Dual Discovery Engine
+Every 6 hours, a background scheduler (APScheduler) runs a scan job using two parallel discovery mechanisms that complement each other to maximize coverage across the internet.
+Discovery Channel 1 — SerpApi Reverse Image Search
+For each registered asset, the system calls SerpApi's Google Reverse Image Search endpoint with the watermarked asset's Cloud Storage URL. SerpApi queries Google's entire indexed web and returns every URL where that image or visually similar content appears — covering news sites, blogs, sports forums, Reddit, public social pages, piracy streaming sites, and more.
+Discovery Channel 2 — YouTube Data API
+For each registered asset's keywords, the system searches YouTube Data API for newly uploaded videos. Videos published after the last scan timestamp are retrieved, frames are extracted using yt-dlp, and the watermark decoder runs on those frames. This catches stolen content uploaded to YouTube and YouTube Shorts even before Google indexes the video page.
+Discovery Channel
+Covers
+Cannot Cover
+SerpApi Reverse Image
+News sites, blogs, Reddit, forums, piracy sites, public social pages — entire Google-indexed web
+Content behind login walls, Telegram, dark web
+YouTube Data API
+YouTube videos, YouTube Shorts, newly uploaded content before indexing
+Private/unlisted videos, Instagram Reels, TikTok
+3.3 Watermark Verification
+For every URL flagged by either discovery channel, Marqd runs watermark extraction to confirm ownership before raising a violation. This eliminates false positives and provides cryptographic proof of ownership.
+SerpApi result: download image from flagged URL, run blind_watermark decoder
+YouTube result: extract keyframes via yt-dlp, run decoder on each frame
+If watermark Asset ID matches database record — confirmed violation
+pHash comparison runs as secondary check for modified images
+Confidence score calculated from watermark strength + pHash distance
+3.4 Propagation Intelligence
+Beyond simple violation detection, Marqd maps how each asset spreads across the web over time. This directly addresses the track requirement to detect anomalies in content propagation in near real-time.
+Propagation timeline — first seen date per domain across both discovery channels
+Spread velocity calculation — how fast the asset is appearing on new domains
+Geographic distribution — which regions the asset is appearing in
+Platform breakdown — web vs YouTube vs other platforms
+Anomaly flags — content on piracy domains, spread faster than baseline, unexpected regions
+World map visualization showing asset spread with violation markers
+3.5 DMCA Report Generation
+When a confirmed violation is found, the org can generate a DMCA takedown notice in one click. Gemini 3.1 Flash Lite generates the professional legal language. reportlab compiles it into a downloadable PDF containing asset details, violation evidence, watermark extraction proof, and takedown request language appropriate for the platform (web host vs YouTube).
+3.6 Dashboard
+Panel
+Contents
+Asset Registry
+Upload interface, keyword tags per asset, watermark status, pHash fingerprint
+Propagation Map
+World map (Leaflet.js), domain breakdown, YouTube vs web split, spread timeline, anomaly alerts
+Violations Panel
+Side-by-side image comparison, YouTube video frame vs original, confidence score, platform badge, DMCA button
+Scan History
+Per-asset scan log, timestamps, SerpApi credits used, YouTube API units used, results summary
+4. Project File Structure
+4.1 Repository Root
+marqd/
+├── backend/                    # Flask API server
+├── frontend/                   # React dashboard
+├── docker-compose.yml          # Local development
+└── README.md
+4.2 Backend Structure
+backend/
+├── Dockerfile                  # Cloud Run container config
+├── requirements.txt            # Python dependencies
+├── .env.example                # Environment variable template
+├── main.py                     # Flask app entry point
+│
+├── config/
+│   ├── __init__.py
+│   └── settings.py             # DB, API keys, Cloud config
+│
+├── models/
+│   ├── __init__.py
+│   ├── asset.py                # Asset DB model
+│   ├── violation.py            # Violation DB model
+│   └── scan_log.py             # Scan history model
+│
+├── routes/
+│   ├── __init__.py
+│   ├── assets.py               # POST /assets, GET /assets
+│   ├── scans.py                # POST /scans/trigger, GET /scans
+│   ├── violations.py           # GET /violations, GET /violations/{id}
+│   └── reports.py              # POST /reports/dmca/{violation_id}
+│
+├── services/
+│   ├── __init__.py
+│   ├── watermark_service.py    # blind_watermark embed + decode
+│   ├── phash_service.py        # imagehash pHash generation
+│   ├── storage_service.py      # Cloud Storage upload/download
+│   ├── serpapi_service.py      # Reverse image search calls
+│   ├── youtube_service.py      # YouTube Data API v3 search + yt-dlp frame extraction
+│   ├── gemini_service.py       # Gemini API — classify + DMCA
+│   ├── scanner_service.py      # Orchestrates full dual-channel scan pipeline
+│   └── dmca_service.py         # reportlab PDF generation
+│
+├── scheduler/
+│   ├── __init__.py
+│   └── jobs.py                 # APScheduler — 6hr scan job (SerpApi + YouTube)
+│
+├── utils/
+│   ├── __init__.py
+│   ├── domain_whitelist.py     # Authorized domain management
+│   ├── mock_responses.py       # Mock SerpApi/YouTube/Gemini for dev
+│   └── video_utils.py          # OpenCV + yt-dlp frame extraction
+│
+└── tests/
+    ├── test_watermark.py
+    ├── test_serpapi.py
+    ├── test_youtube.py
+    └── test_gemini.py
+4.3 Frontend Structure
+frontend/
+├── Dockerfile                  # nginx Cloud Run container
+├── nginx.conf                  # nginx config for React SPA
+├── package.json
+├── tailwind.config.js
+├── .env.example
+│
+├── public/
+│   └── index.html
+│
+└── src/
+    ├── main.jsx                # React entry point
+    ├── App.jsx                 # Router + layout
+    │
+    ├── pages/
+    │   ├── Dashboard.jsx       # Overview + stats
+    │   ├── Assets.jsx          # Asset registry page
+    │   ├── PropagationMap.jsx  # Leaflet world map
+    │   ├── Violations.jsx      # Violations list + detail
+    │   └── ScanHistory.jsx     # Scan logs
+    │
+    ├── components/
+    │   ├── layout/
+    │   │   ├── Sidebar.jsx
+    │   │   ├── Navbar.jsx
+    │   │   └── PageWrapper.jsx
+    │   ├── assets/
+    │   │   ├── AssetUploader.jsx    # Drag-drop upload + keyword tags
+    │   │   ├── AssetCard.jsx        # Asset display card
+    │   │   └── WatermarkBadge.jsx   # Watermark status indicator
+    │   ├── violations/
+    │   │   ├── ViolationCard.jsx    # Side-by-side comparison
+    │   │   ├── ConfidenceScore.jsx  # Score display
+    │   │   └── DMCAButton.jsx       # Generate report button
+    │   ├── map/
+    │   │   ├── PropagationLayer.jsx # Leaflet markers + circles
+    │   │   └── AnomalyAlert.jsx     # Red flag popup
+    │   └── common/
+    │       ├── StatusBadge.jsx      # Platform badge (YouTube / Web)
+    │       ├── LoadingSpinner.jsx
+    │       └── EmptyState.jsx
+    │
+    ├── hooks/
+    │   ├── useAssets.js         # Asset CRUD hooks
+    │   ├── useViolations.js     # Violation fetch hooks
+    │   └── useScanner.js        # Trigger scan + poll status
+    │
+    ├── services/
+    │   └── api.js               # Axios instance + all API calls
+    │
+    └── utils/
+        ├── formatters.js        # Date, URL, confidence formatting
+        └── constants.js         # API base URL, config
+4.4 Database Schema
+assets table
+CREATE TABLE assets (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            VARCHAR(100) NOT NULL,
+  asset_name        VARCHAR(255) NOT NULL,
+  asset_type        VARCHAR(20) NOT NULL,        -- image | video
+  watermark_id      VARCHAR(100) UNIQUE NOT NULL,
+  phash             VARCHAR(64),
+  storage_url       TEXT NOT NULL,               -- Cloud Storage URL (watermarked)
+  original_url      TEXT,                        -- Cloud Storage URL (original)
+  search_keywords   TEXT[],                      -- keywords for YouTube API search
+  authorized_domains TEXT[],                     -- whitelist per asset
+  created_at        TIMESTAMP DEFAULT NOW()
+);
+violations table
+CREATE TABLE violations (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_id          UUID REFERENCES assets(id),
+  violation_url     TEXT NOT NULL,
+  domain            VARCHAR(255),
+  platform          VARCHAR(20),                 -- WEB | YOUTUBE
+  youtube_video_id  VARCHAR(50),                 -- populated for YouTube violations
+  domain_category   VARCHAR(20),                 -- AUTHORIZED | SUSPICIOUS | VIOLATION
+  watermark_match   BOOLEAN DEFAULT FALSE,       -- confirmed via extraction
+  confidence        FLOAT,                       -- 0.0 to 1.0
+  gemini_reason     TEXT,
+  detected_at       TIMESTAMP DEFAULT NOW(),
+  dmca_generated    BOOLEAN DEFAULT FALSE
+);
+scan_logs table
+CREATE TABLE scan_logs (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_id          UUID REFERENCES assets(id),
+  scan_type         VARCHAR(20),                 -- scheduled | manual
+  serpapi_results   INTEGER DEFAULT 0,           -- URLs found via SerpApi
+  youtube_results   INTEGER DEFAULT 0,           -- videos found via YouTube API
+  violations        INTEGER DEFAULT 0,
+  serpapi_credits   INTEGER DEFAULT 0,           -- SerpApi credits used
+  youtube_units     INTEGER DEFAULT 0,           -- YouTube API units used
+  started_at        TIMESTAMP DEFAULT NOW(),
+  completed_at      TIMESTAMP
+);
+5. System Architecture
+5.1 Full Pipeline
+┌──────────────────────────────────────────────────────────┐
+│                   SPORTS ORGANIZATION                   │
+│    Uploads official photo/video + assigns keywords      │
+└─────────────────────────┬────────────────────────────────┘
+                          │ HTTP POST /assets
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│               FLASK BACKEND (Cloud Run)                  │
+│                                                          │
+│  1. Generate unique Asset ID                             │
+│  2. blind_watermark.embed(asset, asset_id)               │
+│  3. imagehash.phash(asset) → store fingerprint           │
+│  4. Upload watermarked asset → Cloud Storage             │
+│  5. Store keywords + metadata → Cloud SQL                │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+         ┌────────────────┤ APScheduler — Every 6 hours
+         ▼                ▼
+┌──────────────────────────────────────────────────────────┐
+│              DUAL DISCOVERY ENGINE                       │
+│                                                          │
+│  CHANNEL 1 — SerpApi Reverse Image Search               │
+│    Input: watermarked asset Cloud Storage URL            │
+│    Output: all web pages where asset appears             │
+│                                                          │
+│  CHANNEL 2 — YouTube Data API v3                        │
+│    Input: asset search keywords + last scan timestamp    │
+│    Output: new YouTube videos matching those keywords    │
+│    yt-dlp extracts keyframes from suspicious videos      │
+│                                                          │
+│  COMBINED: All flagged URLs sent to Gemini               │
+│  Gemini classifies: AUTHORIZED / SUSPICIOUS / VIOLATION  │
+│                                                          │
+│  For VIOLATION URLs:                                     │
+│    Download image/frame → blind_watermark.decode()       │
+│    If watermark_id matches → CONFIRMED VIOLATION         │
+│    Save to violations table with platform tag            │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│             REACT DASHBOARD (Cloud Run)                  │
+│                                                          │
+│  Asset Registry → Propagation Map → Violations Panel    │
+│  DMCA Button → Gemini generates notice → PDF download   │
+└──────────────────────────────────────────────────────────┘
+5.2 Platform Coverage Map
+Platform
+Discovery Method
+Coverage
+News sites, blogs, forums
+SerpApi Reverse Image
+Full
+Reddit
+SerpApi Reverse Image
+Full
+Public social pages (web-indexed)
+SerpApi Reverse Image
+Full
+Piracy streaming sites
+SerpApi Reverse Image
+Full
+YouTube Videos
+YouTube Data API v3 + yt-dlp
+Full
+YouTube Shorts
+YouTube Data API v3 + yt-dlp
+Full
+Instagram Reels
+No public API available
+Out of Scope
+TikTok
+No public API available
+Out of Scope
+Telegram / Private groups
+Not publicly indexable
+Out of Scope
+On Instagram & TikTok
+Instagram and TikTok offer no public API for content search — this is an industry-wide limitation affecting enterprise tools like Digimarc and Copytrack equally. Marqd's architecture supports these platforms the moment their APIs become publicly available. Our dual-channel approach already covers the highest-risk platforms for sports media theft: the web and YouTube.
+5.3 Google Cloud Deployment
+Service
+Product
+Region
+Config
+Flask Backend
+Cloud Run
+us-central1
+min-instances=1, 512MB RAM
+React Frontend
+Cloud Run (nginx)
+us-central1
+min-instances=1, 256MB RAM
+Database
+Cloud SQL (PostgreSQL 15)
+us-central1
+db-f1-micro, 10GB SSD
+Asset Storage
+Cloud Storage
+us-central1
+Standard class, public read
+Container Images
+Artifact Registry
+us-central1
+Docker format
+Deployment Note
+All services deployed in us-central1 to qualify for Google Cloud free tier. min-instances=1 on both Cloud Run services prevents cold start during demo. This is critical — a cold start during a live judge demo would be catastrophic.
+6. Backend API Reference
+Method
+Endpoint
+Description
+POST
+/api/assets
+Upload and register new asset — triggers watermarking + keyword storage
+GET
+/api/assets
+List all registered assets for org
+GET
+/api/assets/{id}
+Get single asset with scan history
+DELETE
+/api/assets/{id}
+Remove asset from registry
+POST
+/api/scans/trigger
+Manually trigger dual-channel scan for all assets
+POST
+/api/scans/trigger/{asset_id}
+Manually trigger dual-channel scan for one asset
+GET
+/api/scans
+Get scan history with SerpApi + YouTube results breakdown
+GET
+/api/violations
+List all confirmed violations with platform tag
+GET
+/api/violations/{id}
+Get violation detail with comparison + YouTube video info
+POST
+/api/reports/dmca/{violation_id}
+Generate DMCA PDF via Gemini (platform-specific language)
+GET
+/api/propagation/{asset_id}
+Get propagation data for map viz — web + YouTube breakdown
+GET
+/api/health
+Health check for Cloud Run
+7. 4-Day Build Plan
+Day 1 — Backend Core
+Flask app setup, config, CORS, PostgreSQL connection via Cloud SQL
+blind_watermark integration — embed and decode endpoints
+video-invisible-watermark for video assets
+imagehash pHash generation
+Cloud Storage upload service
+Asset registration API with keyword field (POST /api/assets)
+Database schema creation — assets, violations, scan_logs tables
+Mock responses for SerpApi, YouTube API, and Gemini (save all real credits)
+Day 2 — Dual Discovery Pipeline
+SerpApi reverse image search service
+YouTube Data API v3 service — keyword search, new upload filtering
+yt-dlp integration — keyframe extraction from YouTube video URLs
+Gemini 3.1 Flash Lite — domain classification service
+Gemini 3.1 Flash Lite — DMCA report generation service (platform-aware)
+Scanner orchestration service — runs both channels in parallel
+APScheduler 6-hour job setup
+Violations storage, retrieval, and platform tagging APIs
+reportlab DMCA PDF generation
+Day 3 — Frontend
+React app scaffold, TailwindCSS, routing setup
+Asset upload UI with drag-and-drop + keyword tag input
+Asset registry page with watermark status
+Violations panel — side-by-side comparison, YouTube frame view, confidence score, platform badge
+Propagation map with Leaflet.js — web vs YouTube marker distinction
+DMCA report button — triggers Gemini, downloads platform-appropriate PDF
+Scan history with SerpApi credits and YouTube API units breakdown
+Axios API service layer
+Day 4 — Deploy + Polish
+Dockerfiles for both backend and frontend (nginx)
+Deploy to Google Cloud Run (us-central1) — backend and frontend
+Cloud SQL setup and connection from Cloud Run
+Set min-instances=1 on both services before demo
+Enable YouTube Data API v3 in Google Cloud Console
+End-to-end demo flow rehearsal — image violation + YouTube violation
+Plant two test violations: one on web (Imgur), one as YouTube upload
+Presentation prep — explain dual discovery engine clearly
+8. Demo Flow
+The demo tells one clear story: official sports content gets stolen across two platforms simultaneously — our system finds both violations, proves ownership on both, and generates takedown notices in one click.
+Step 1 — Register Asset
+Upload an official IPL match photo. Assign keywords: 'IPL 2025 Final Rohit Sharma'. System watermarks it invisibly. Show original vs watermarked side-by-side — visually identical. First wow moment.
+Step 2 — Simulate Theft (Pre-Demo Setup)
+Web violation: upload the watermarked image to Imgur with a public URL
+YouTube violation: upload a short clip containing the watermarked image to a test YouTube account with title 'IPL 2025 insane moment highlights'
+Step 3 — Run Scan
+Hit Scan Now on dashboard. Both discovery channels run simultaneously. SerpApi finds the Imgur URL. YouTube API finds the test video by keyword. Both results appear in the violations panel within seconds.
+Step 4 — Watermark Verification
+System downloads the Imgur image and extracts watermark — Asset ID confirmed. System downloads a keyframe from the YouTube video via yt-dlp and extracts watermark — Asset ID confirmed again. Two confirmed violations, two platforms, one scan.
+Step 5 — Propagation Map
+Map updates showing violations on two platforms. Anomaly flagged — content appeared on an unknown domain and an unverified YouTube channel within hours of registration.
+Step 6 — DMCA Reports
+One click generates two DMCA notices — one worded for a web host takedown, one worded for a YouTube copyright strike. Both PDFs download instantly with watermark extraction as legal proof.
+9. Known Limitations & Judge Responses
+Limitation
+Honest Answer for Judges
+Instagram Reels and TikTok not covered
+Instagram and TikTok provide no public API for content search — this is an industry-wide limitation affecting enterprise tools equally. Our architecture supports integration the moment those APIs become available.
+YouTube keyword search can be evaded by obscure titles
+Anyone trying to monetize stolen sports content needs discoverability — they cannot avoid relevant keywords entirely. Completely obfuscated uploads get no views and represent minimal revenue loss.
+SerpApi 250 searches/month on free tier
+Production deployment uses paid tier. Scheduled monitoring every 6 hours is architecturally identical to how enterprise tools like Copytrack and Digimarc operate.
+Watermark can degrade under heavy compression
+blind_watermark DWT+DCT is robust to typical social media re-encoding, resizing, and minor crops. Heavy adversarial attacks are a known research problem across all watermarking systems.
+Demo uses planted violations
+Every hackathon demo uses controlled data. The detection pipeline is identical regardless of who uploaded the content. Both discovery channels are fully functional.
+10. Environment Variables
+Backend (.env)
+# Database
+DATABASE_URL=postgresql://user:pass@/marqd?host=/cloudsql/project:region:instance
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=your-project-id
+GCS_BUCKET_NAME=marqd-assets
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# SerpApi
+SERPAPI_KEY=your-serpapi-key
+# YouTube Data API
+YOUTUBE_API_KEY=your-youtube-data-api-key
+# Gemini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.1-flash-lite
+# App
+FLASK_ENV=production
+USE_MOCK_APIS=false        # Set true during development to save credits
+SCAN_INTERVAL_HOURS=6
+Frontend (.env)
+VITE_API_BASE_URL=https://your-backend-cloud-run-url.run.app/api
+VITE_ENV=production
+11. Dependencies
+Backend (requirements.txt)
+flask==3.0.3
+flask-cors==4.0.1
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.30
+blind-watermark==0.4.4
+imagehash==4.3.1
+Pillow==10.3.0
+opencv-python-headless==4.9.0.80
+video-invisible-watermark==0.1.0
+yt-dlp==2024.5.27
+google-api-python-client==2.131.0
+serpapi==0.1.5
+google-generativeai==0.7.2
+reportlab==4.2.0
+APScheduler==3.10.4
+google-cloud-storage==2.16.0
+python-dotenv==1.0.1
+gunicorn==22.0.0
+Frontend (package.json key deps)
+"react": "^18.3.1",
+"react-dom": "^18.3.1",
+"react-router-dom": "^6.23.1",
+"axios": "^1.7.2",
+"leaflet": "^1.9.4",
+"react-leaflet": "^4.2.1",
+"tailwindcss": "^3.4.3",
+"@vitejs/plugin-react": "^4.3.0",
+"vite": "^5.2.12"
+Marqd v2.0 — Google Solution Challenge 2026 | Digital Asset Protection Track

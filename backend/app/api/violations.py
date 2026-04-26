@@ -23,9 +23,21 @@ def list_violations():
 
     violations = query.order_by(Violation.detected_at.desc()).all()
 
+    results = []
+    for v in violations:
+        data = v.to_dict()
+        if v.asset:
+            data["original_asset"] = {
+                "asset_id": v.asset.asset_id,
+                "original_url": v.asset.original_url,
+                "watermarked_url": v.asset.watermarked_url,
+                "org_name": v.asset.org_name,
+            }
+        results.append(data)
+
     return jsonify({
-        "count": len(violations),
-        "violations": [v.to_dict() for v in violations]
+        "count": len(results),
+        "violations": results
     })
 
 
