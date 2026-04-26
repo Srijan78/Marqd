@@ -61,3 +61,7 @@ backend/*.mp4
 # Generated Audit Reports
 PROJECT_SUMMARY.md
 SECURITY_AUDIT.md
+
+# Security Credentials
+*.json
+marqd-*.json
