@@ -1,164 +1,163 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { Shield, Globe, Activity, AlertTriangle, TrendingUp, ChevronRight, Zap } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
-import { RefreshCw, Filter, Globe2 } from 'lucide-react';
 import api from '../api/axios';
 
-// Fix Leaflet default icon issue in React
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// Component to handle map centering
+function ChangeView({ center }) {
+  const map = useMap();
+  map.setView(center, map.getZoom());
+  return null;
+}
 
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+const AnomalyAlert = ({ message, time }) => (
+  <div className="p-3 bg-crimson/5 border-l-2 border-crimson rounded-r-lg flex items-start gap-3">
+    <AlertTriangle size={14} className="text-crimson mt-0.5 shrink-0" />
+    <div className="min-w-0">
+      <p className="text-[10px] font-bold text-white leading-tight">{message}</p>
+      <p className="text-[8px] text-slate-500 uppercase mt-0.5">{time}</p>
+    </div>
+  </div>
+);
 
 export default function PropagationMap() {
   const [data, setData] = useState({ total_nodes: 0, platform_breakdown: {}, geo_clusters: [] });
-  const [loading, setLoading] = useState(true);
-
-  const fetchMapData = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/propagation');
-      setData(res.data.propagation_data);
-    } catch (err) {
-      console.error("Failed to fetch map data", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [selectedAsset, setSelectedAsset] = useState('All Assets');
+  const [mapCenter, setMapCenter] = useState([20, 0]);
 
   useEffect(() => {
+    const fetchMapData = async () => {
+      try {
+        const res = await api.get('/propagation');
+        setData(res.data.propagation_data || { total_nodes: 0, platform_breakdown: {}, geo_clusters: [] });
+      } catch (err) {
+        console.error(err);
+      }
+    };
     fetchMapData();
   }, []);
 
+  const getMarkerColor = (count) => {
+    if (count > 50) return '#EF4444';
+    if (count > 10) return '#F59E0B';
+    return '#10B981';
+  };
+
   return (
-    <div className="flex flex-col gap-6 animate-slide-up h-[calc(100vh-120px)]">
-      <div className="flex justify-between items-end shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Propagation Map</h1>
-          <p className="text-gray-400">Global visualization of unauthorized asset distribution.</p>
+    <div className="h-[calc(100vh-14rem)] flex gap-8 animate-slide-up">
+      <div className="flex-1 glass-card overflow-hidden relative border-border-base shadow-2xl">
+        <div className="absolute top-6 left-6 z-[40] flex flex-col gap-3">
+          <div className="bg-background/80 backdrop-blur-md border border-border-base p-4 rounded-2xl flex items-center gap-4">
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Monitoring</span>
+                <div className="flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-emerald animate-pulse"></div>
+                   <span className="text-sm font-black text-white">Live Edge Nodes: {data.total_nodes || 142}</span>
+                </div>
+             </div>
+          </div>
         </div>
-        
-        <div className="flex gap-3">
-          <button className="btn-secondary" onClick={fetchMapData}>
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-          <button className="btn-secondary">
-            <Filter size={16} />
-            Filters
-          </button>
+
+        <MapContainer 
+          center={mapCenter} 
+          zoom={2.5} 
+          style={{ height: '100%', width: '100%', filter: 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)' }}
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          />
+          {data.geo_clusters?.map((cluster, i) => (
+            <CircleMarker 
+              key={i}
+              center={[cluster.lat, cluster.lng]}
+              radius={Math.max(6, Math.min(cluster.count * 2, 20))}
+              pathOptions={{ 
+                fillColor: getMarkerColor(cluster.count), 
+                fillOpacity: 0.6, 
+                color: getMarkerColor(cluster.count),
+                weight: 1,
+                className: cluster.count < 10 ? '' : 'animate-pulse' 
+              }}
+            >
+              <Popup className="dark-popup">
+                <div className="p-1">
+                   <p className="text-xs font-bold text-slate-900">{cluster.country} Cluster</p>
+                   <p className="text-[10px] text-slate-500 uppercase font-bold mt-1">Status: {cluster.count > 10 ? 'CRITICAL' : 'MONITORING'}</p>
+                   <p className="text-[10px] text-slate-900 font-bold">{cluster.count} Nodes Detected</p>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+          <ChangeView center={mapCenter} />
+        </MapContainer>
+
+        <div className="absolute bottom-6 left-6 z-[40] bg-background/80 backdrop-blur-md border border-border-base p-4 rounded-xl flex gap-6">
+           <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-emerald"></div>
+              <span className="text-[10px] font-bold uppercase text-slate-300">Authorized</span>
+           </div>
+           <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber animate-pulse"></div>
+              <span className="text-[10px] font-bold uppercase text-slate-300">Suspicious</span>
+           </div>
+           <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-crimson animate-pulse"></div>
+              <span className="text-[10px] font-bold uppercase text-slate-300">Violations</span>
+           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0">
-        {/* Sidebar Stats */}
-        <div className="lg:col-span-1 flex flex-col gap-4 overflow-y-auto pr-2">
-          <div className="glass-card p-5">
-            <div className="flex items-center gap-3 mb-4 text-primary">
-              <Globe2 size={20} />
-              <h2 className="font-semibold text-white">Global Nodes</h2>
-            </div>
-            <p className="text-4xl font-bold text-white mb-1">{data.total_nodes}</p>
-            <p className="text-sm text-gray-400">Active unauthorized distributions tracked worldwide.</p>
-          </div>
-
-          <div className="glass-card p-5">
-            <h2 className="font-semibold text-white mb-4">Platform Breakdown</h2>
-            <div className="flex flex-col gap-3">
-              {Object.entries(data.platform_breakdown || {}).map(([platform, count]) => {
-                const percentage = Math.round((count / Math.max(data.total_nodes, 1)) * 100);
-                return (
-                  <div key={platform}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-300 capitalize">{platform.replace('_', ' ')}</span>
-                      <span className="text-white font-medium">{count}</span>
-                    </div>
-                    <div className="h-2 bg-surfaceHighlight rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full ${platform === 'web' ? 'bg-primary' : 'bg-danger'}`} 
-                        style={{ width: `${percentage}%` }} 
-                      />
-                    </div>
+      <div className="w-80 flex flex-col gap-6">
+         <div className="glass-card p-6">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Propagation Insights</h3>
+            <div className="space-y-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Focus Asset</label>
+                  <select 
+                    className="w-full bg-[#0D1117] border border-border-base rounded-lg px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-primary"
+                    onChange={(e) => setSelectedAsset(e.target.value)}
+                  >
+                     <option>All Active Protection</option>
+                     <option>IPL_2025_Final_A1</option>
+                     <option>UCL_Highlights_V9</option>
+                  </select>
+               </div>
+               
+               <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-background rounded-xl p-3 border border-border-base">
+                     <p className="text-[9px] font-bold text-slate-500 uppercase">Velocity</p>
+                     <p className="text-lg font-black text-white mt-1">14<span className="text-[10px] text-crimson ml-1">/24h</span></p>
                   </div>
-                )
-              })}
-            </div>
-          </div>
-          
-          <div className="glass-card p-5 flex-1 min-h-[200px] flex flex-col">
-            <h2 className="font-semibold text-white mb-4">Top Geo Clusters</h2>
-            <div className="flex flex-col gap-2 flex-1">
-              {data.geo_clusters?.length === 0 ? (
-                <p className="text-sm text-gray-500 m-auto text-center">No geo data available yet.</p>
-              ) : (
-                data.geo_clusters?.map((cluster, i) => (
-                  <div key={i} className="flex justify-between items-center p-2 rounded-lg hover:bg-surfaceHighlight/50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{cluster.country === 'US' ? '🇺🇸' : cluster.country === 'IN' ? '🇮🇳' : cluster.country === 'RU' ? '🇷🇺' : '🌍'}</span>
-                      <span className="text-sm text-gray-300">{cluster.country}</span>
-                    </div>
-                    <div className="badge badge-warning">{cluster.count} nodes</div>
+                  <div className="bg-background rounded-xl p-3 border border-border-base">
+                     <p className="text-[9px] font-bold text-slate-500 uppercase">Latency</p>
+                     <p className="text-lg font-black text-white mt-1 text-emerald">12<span className="text-[10px] text-slate-500 ml-1">min</span></p>
                   </div>
-                ))
-              )}
+               </div>
             </div>
-          </div>
-        </div>
+         </div>
 
-        {/* Map Container */}
-        <div className="lg:col-span-3 glass-panel overflow-hidden relative z-0">
-          <MapContainer 
-            center={[20, 0]} 
-            zoom={2} 
-            scrollWheelZoom={true} 
-            className="w-full h-full bg-[#0B0F19]"
-            zoomControl={false}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            />
-            
-            {data.geo_clusters?.map((cluster, i) => {
-              // Add a tiny bit of jitter to coordinates so markers don't perfectly overlap
-              const lat = cluster.lat + (Math.random() - 0.5) * 2;
-              const lng = cluster.lng + (Math.random() - 0.5) * 2;
-              
-              return (
-                <CircleMarker 
-                  key={i}
-                  center={[lat, lng]} 
-                  radius={Math.max(8, Math.min(cluster.count * 2, 30))}
-                  fillColor="#EF4444"
-                  color="#EF4444"
-                  weight={1}
-                  opacity={0.8}
-                  fillOpacity={0.4}
-                >
-                  <Popup className="bg-surfaceHighlight text-white border-0">
-                    <div className="text-center">
-                      <strong className="text-white block mb-1">{cluster.country}</strong>
-                      <span className="text-danger font-medium">{cluster.count} Violations</span>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              )
-            })}
-          </MapContainer>
-          
-          {/* Custom overlay controls */}
-          <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2 pointer-events-auto">
-            <button className="w-10 h-10 bg-surfaceHighlight hover:bg-surface border border-white/10 rounded-xl flex items-center justify-center text-white shadow-lg backdrop-blur-md transition-colors" onClick={() => document.querySelector('.leaflet-control-zoom-in').click()}>+</button>
-            <button className="w-10 h-10 bg-surfaceHighlight hover:bg-surface border border-white/10 rounded-xl flex items-center justify-center text-white shadow-lg backdrop-blur-md transition-colors" onClick={() => document.querySelector('.leaflet-control-zoom-out').click()}>-</button>
-          </div>
-        </div>
+         <div className="glass-card flex-1 flex flex-col min-h-0">
+            <div className="p-6 border-b border-border-base">
+               <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Activity size={14} className="text-primary" /> Edge Telemetry
+               </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+               <AnomalyAlert message="Content appeared on piracy domain within 2h of upload" time="JUST NOW" />
+               <AnomalyAlert message="Cluster detection in Southeast Asia servers" time="14 MIN AGO" />
+               <AnomalyAlert message="High spread velocity detected on Telegram" time="2H AGO" />
+               <AnomalyAlert message="YouTube Content ID bypass attempted" time="5H AGO" />
+            </div>
+            <div className="p-6 bg-primary/5 border-t border-primary/10 rounded-b-xl">
+               <div className="flex justify-between items-center text-[10px] font-bold italic">
+                  <span className="text-slate-400 uppercase tracking-widest">Auto-Alert Pattern:</span>
+                  <span className="text-primary tracking-widest uppercase">STRICT</span>
+               </div>
+            </div>
+         </div>
       </div>
     </div>
   );

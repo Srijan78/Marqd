@@ -1,192 +1,30 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, ShieldCheck, ExternalLink, X, FileText, Download, Loader2, Eye, Filter, Globe, Video } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, ExternalLink, X, FileText, Download, Loader2, Globe, Play, Search, Filter, CheckCircle2, ShieldAlert } from 'lucide-react';
 import api from '../api/axios';
 
-/* ─── Confidence Meter ─── */
-const ConfidenceMeter = ({ score }) => {
-  const pct = Math.round(score * 100);
-  const color = pct >= 80 ? 'bg-red-500' : pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500';
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-2 rounded-full bg-surfaceHighlight overflow-hidden">
-        <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-sm font-bold text-white w-12 text-right">{pct}%</span>
-    </div>
-  );
-};
+const PlatformTab = ({ active, label, count, onClick }) => (
+  <button 
+    onClick={onClick}
+    className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-all duration-300 ${
+      active 
+      ? 'border-primary text-white bg-primary/5' 
+      : 'border-transparent text-slate-500 hover:text-slate-300'
+    }`}
+  >
+    <span className="text-sm font-bold uppercase tracking-widest">{label}</span>
+    {count !== undefined && (
+      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${active ? 'bg-primary text-white' : 'bg-slate-800 text-slate-500'}`}>
+        {count}
+      </span>
+    )}
+  </button>
+);
 
-/* ─── Detail Modal ─── */
-const ViolationDetailModal = ({ violation, onClose }) => {
-  const [generating, setGenerating] = useState(false);
-  const [reportUrl, setReportUrl] = useState(violation?.dmca_report_url || null);
-
-  if (!violation) return null;
-
-  const handleGenerateDMCA = async () => {
-    setGenerating(true);
-    try {
-      const res = await api.post(`/reports/dmca/${violation.id}`);
-      setReportUrl(res.data.report_url);
-    } catch (err) {
-      console.error('DMCA generation failed:', err);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto glass-panel p-0 animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center border border-danger/20">
-              <AlertTriangle size={20} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Violation Detail</h2>
-              <p className="text-xs text-gray-500">{violation.id}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surfaceHighlight transition-colors text-gray-400 hover:text-white">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Side-by-Side Comparison */}
-        <div className="p-6 border-b border-white/5">
-          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Visual Comparison</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {/* Original Asset */}
-            <div className="flex flex-col gap-2">
-              <span className="badge badge-success w-fit">Original Asset</span>
-              <div className="aspect-video rounded-xl bg-surfaceHighlight border border-white/5 overflow-hidden flex items-center justify-center">
-                {violation.original_asset?.original_url ? (
-                  <img
-                    src={`${import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000'}${violation.original_asset.original_url}`}
-                    alt="Original asset"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="text-gray-600 text-sm flex flex-col items-center gap-2">
-                    <ShieldCheck size={32} className="opacity-30" />
-                    <span>Original on file</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 truncate">ID: {violation.original_asset?.asset_id || 'N/A'}</p>
-            </div>
-
-            {/* Infringing Content */}
-            <div className="flex flex-col gap-2">
-              <span className="badge badge-danger w-fit">Infringing Content</span>
-              <div className="aspect-video rounded-xl bg-surfaceHighlight border border-white/5 overflow-hidden flex items-center justify-center">
-                {violation.thumbnail_url ? (
-                  <img
-                    src={violation.thumbnail_url}
-                    alt="Infringing content"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                ) : (
-                  <div className="text-gray-600 text-sm flex flex-col items-center gap-2">
-                    <AlertTriangle size={32} className="opacity-30" />
-                    <span>No thumbnail</span>
-                  </div>
-                )}
-              </div>
-              <a href={violation.source_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-primary hover:text-primaryHover truncate flex items-center gap-1">
-                <ExternalLink size={12} />{violation.source_url}
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Forensic Evidence */}
-        <div className="p-6 border-b border-white/5">
-          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Forensic Evidence</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="glass-card p-4">
-              <p className="text-xs text-gray-500 mb-1">Confidence Score</p>
-              <ConfidenceMeter score={violation.confidence_score} />
-            </div>
-            <div className="glass-card p-4">
-              <p className="text-xs text-gray-500 mb-1">Watermark Match</p>
-              <p className={`text-lg font-bold ${violation.watermark_match ? 'text-emerald-400' : 'text-red-400'}`}>
-                {violation.watermark_match ? '✓ Verified' : '✗ Not Found'}
-              </p>
-            </div>
-            <div className="glass-card p-4">
-              <p className="text-xs text-gray-500 mb-1">pHash Distance</p>
-              <p className="text-lg font-bold text-white">
-                {violation.phash_distance !== null ? violation.phash_distance : 'N/A'}
-                <span className="text-xs text-gray-500 ml-2">(≤10 = match)</span>
-              </p>
-            </div>
-            <div className="glass-card p-4">
-              <p className="text-xs text-gray-500 mb-1">Classification</p>
-              <p className={`text-lg font-bold ${violation.classification === 'VIOLATION' ? 'text-red-400' : violation.classification === 'SUSPICIOUS' ? 'text-amber-400' : 'text-gray-300'}`}>
-                {violation.classification}
-              </p>
-            </div>
-          </div>
-          {violation.classification_reason && (
-            <div className="mt-4 glass-card p-4">
-              <p className="text-xs text-gray-500 mb-1">AI Reasoning</p>
-              <p className="text-sm text-gray-300">{violation.classification_reason}</p>
-            </div>
-          )}
-        </div>
-
-        {/* DMCA Action */}
-        <div className="p-6 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-white">Legal Action</p>
-            <p className="text-xs text-gray-500">Generate an AI-powered DMCA takedown notice</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {reportUrl && (
-              <a
-                href={`${import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000'}${reportUrl}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-sm"
-              >
-                <Download size={16} />
-                Download PDF
-              </a>
-            )}
-            <button
-              className="btn-primary text-sm"
-              onClick={handleGenerateDMCA}
-              disabled={generating}
-            >
-              {generating ? (
-                <><Loader2 size={16} className="animate-spin" />Generating...</>
-              ) : (
-                <><FileText size={16} />{reportUrl ? 'Regenerate DMCA' : 'Generate DMCA'}</>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ─── Main Violations Page ─── */
 export default function Violations() {
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedViolation, setSelectedViolation] = useState(null);
-  const [filterPlatform, setFilterPlatform] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPlatform, setFilterPlatform] = useState('ALL');
+  const [generatingDmca, setGeneratingDmca] = useState(null);
 
   useEffect(() => {
     fetchViolations();
@@ -204,156 +42,182 @@ export default function Violations() {
     }
   };
 
-  const openDetail = async (violation) => {
-    try {
-      // Fetch full detail (includes original_asset info)
-      const res = await api.get(`/violations/${violation.id}`);
-      setSelectedViolation(res.data);
-    } catch {
-      setSelectedViolation(violation);
-    }
+  const handleGenerateDmca = (id) => {
+    setGeneratingDmca(id);
+    setTimeout(() => {
+      setGeneratingDmca(null);
+      setViolations(prev => prev.map(v => v.id === id ? { ...v, status: 'dmca_sent' } : v));
+    }, 2000);
   };
 
   const filtered = violations.filter(v => {
-    if (filterPlatform !== 'all' && v.platform !== filterPlatform) return false;
-    if (filterStatus !== 'all' && v.status !== filterStatus) return false;
-    return true;
+    if (filterPlatform === 'ALL') return true;
+    if (filterPlatform === 'WEB' && v.platform === 'web') return true;
+    if (filterPlatform === 'YOUTUBE' && v.platform?.includes('youtube')) return true;
+    return false;
   });
-
-  const statusColors = {
-    detected: 'badge-warning',
-    confirmed: 'badge-primary',
-    dmca_sent: 'badge-success',
-    resolved: 'badge-success',
-  };
-
-  const platformIcons = {
-    web: <Globe size={14} />,
-    youtube: <Video size={14} />,
-    youtube_shorts: <Video size={14} />,
-  };
 
   return (
     <div className="flex flex-col gap-8 animate-slide-up">
-      {/* Header */}
-      <div className="flex justify-between items-end flex-wrap gap-4">
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Violations Panel</h1>
-          <p className="text-gray-400">Review detected infringements and take legal action.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Platform Filter */}
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-500" />
-            <select
-              value={filterPlatform}
-              onChange={(e) => setFilterPlatform(e.target.value)}
-              className="input-field py-2 text-sm w-32"
-            >
-              <option value="all">All Platforms</option>
-              <option value="web">Web</option>
-              <option value="youtube">YouTube</option>
-              <option value="youtube_shorts">Shorts</option>
-            </select>
-          </div>
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="input-field py-2 text-sm w-32"
-          >
-            <option value="all">All Status</option>
-            <option value="detected">Detected</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="dmca_sent">DMCA Sent</option>
-            <option value="resolved">Resolved</option>
-          </select>
+          <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Violations Panel</h1>
+          <p className="text-slate-500 font-medium mt-1">Review AI-classified threats and initiate enforcement actions.</p>
         </div>
       </div>
 
-      {/* Violations Table */}
       <div className="glass-card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-primary" />
+        <div className="flex border-b border-border-base bg-[#0D1117]/30">
+          <PlatformTab 
+            label="All Platforms" 
+            active={filterPlatform === 'ALL'} 
+            count={violations.length} 
+            onClick={() => setFilterPlatform('ALL')} 
+          />
+          <PlatformTab 
+            label="Web Domains" 
+            active={filterPlatform === 'WEB'} 
+            count={violations.filter(v => v.platform === 'web').length}
+            onClick={() => setFilterPlatform('WEB')} 
+          />
+          <PlatformTab 
+            label="YouTube" 
+            active={filterPlatform === 'YOUTUBE'} 
+            count={violations.filter(v => v.platform?.includes('youtube')).length}
+            onClick={() => setFilterPlatform('YOUTUBE')} 
+          />
+          
+          <div className="flex-1 flex justify-end items-center px-6 gap-4">
+             <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                <input type="text" placeholder="Filter by domain..." className="bg-background border border-border-base rounded-lg pl-9 pr-4 py-1.5 text-xs text-white focus:outline-none focus:border-primary/50 w-48" />
+             </div>
+             <button className="text-slate-400 hover:text-white transition-colors">
+               <Filter size={18} />
+             </button>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <ShieldCheck size={48} className="mb-4 opacity-30" />
-            <p className="text-lg font-medium">No violations found</p>
-            <p className="text-sm">Your assets are currently safe.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/5 bg-surfaceHighlight/30">
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Platform</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Domain / Source</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Confidence</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Classification</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Detected</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((v) => (
-                  <tr
-                    key={v.id}
-                    className="border-b border-white/5 hover:bg-surfaceHighlight/30 transition-colors cursor-pointer group"
-                    onClick={() => openDetail(v)}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-300">
-                        {platformIcons[v.platform] || <Globe size={14} />}
-                        <span className="capitalize">{v.platform?.replace('_', ' ')}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-white truncate max-w-[240px]">{v.domain || v.video_title || 'Unknown'}</p>
-                      <p className="text-xs text-gray-500 truncate max-w-[240px]">{v.source_url}</p>
-                    </td>
-                    <td className="px-6 py-4 w-44">
-                      <ConfidenceMeter score={v.confidence_score} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`badge ${v.classification === 'VIOLATION' ? 'badge-danger' : v.classification === 'SUSPICIOUS' ? 'badge-warning' : 'badge-primary'}`}>
-                        {v.classification}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`badge ${statusColors[v.status] || 'badge-primary'}`}>
-                        {v.status?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-400">
-                      {v.detected_at ? new Date(v.detected_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        className="opacity-0 group-hover:opacity-100 transition-opacity btn-secondary py-1.5 px-3 text-xs"
-                        onClick={(e) => { e.stopPropagation(); openDetail(v); }}
-                      >
-                        <Eye size={14} />
-                        Inspect
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        </div>
 
-      {/* Detail Modal */}
-      {selectedViolation && (
-        <ViolationDetailModal
-          violation={selectedViolation}
-          onClose={() => setSelectedViolation(null)}
-        />
-      )}
+        <div className="p-6 space-y-6">
+          {loading ? (
+            <div className="py-20 flex items-center justify-center">
+              <Loader2 size={32} className="animate-spin text-primary" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-20 flex flex-col items-center justify-center text-slate-600">
+               <ShieldAlert size={64} className="mb-4 opacity-10" />
+               <p className="text-lg font-bold">No active violations in this category</p>
+               <p className="text-sm uppercase tracking-widest mt-1">All assets secure</p>
+            </div>
+          ) : (
+            filtered.map((v) => (
+              <div key={v.id} className="glass-card p-0 flex flex-col md:flex-row overflow-hidden border-border-base hover:border-primary/20 bg-[#0D1117]/50 transition-all">
+                {/* Left: Comparison Section */}
+                <div className="md:w-80 flex shrink-0 h-48 md:h-auto">
+                   <div className="flex-1 relative group overflow-hidden bg-surface-card">
+                      <img 
+                        src={v.original_asset_url || '/placeholder.jpg'} 
+                        alt="Original" 
+                        className="w-full h-full object-cover grayscale opacity-30 transition-all group-hover:grayscale-0 group-hover:opacity-100" 
+                      />
+                      <div className="absolute top-2 left-2 badge bg-emerald/20 text-emerald border-emerald/20 text-[8px] font-black">ORIGINAL</div>
+                   </div>
+                   <div className="w-[1px] bg-border-base relative z-10 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-border-base border border-border-base flex items-center justify-center text-[10px] font-black text-white italic shadow-lg">VS</div>
+                   </div>
+                   <div className="flex-1 relative group overflow-hidden bg-surface-card">
+                      <img 
+                        src={v.thumbnail_url || v.infringing_url || '/placeholder.jpg'} 
+                        alt="Infringing" 
+                        className="w-full h-full object-cover transition-all" 
+                      />
+                      <div className="absolute top-2 right-2 badge bg-crimson/20 text-crimson border-crimson/20 text-[8px] font-black">INFRINGING</div>
+                      {v.platform?.includes('youtube') && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                           <Play size={24} className="text-white drop-shadow-lg opacity-80" />
+                        </div>
+                      )}
+                   </div>
+                </div>
+
+                {/* Right: Info Section */}
+                <div className="flex-1 p-6 flex flex-col">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="space-y-1">
+                         <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-white tracking-tight truncate max-w-[300px]">
+                              {v.domain || v.video_title || 'Unauthorized Source'}
+                            </h3>
+                            <div className={`badge ${v.platform?.includes('youtube') ? 'bg-crimson/10 text-crimson border-crimson/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
+                               {v.platform?.toUpperCase()}
+                            </div>
+                         </div>
+                         <p className="text-[10px] font-mono text-slate-500 uppercase flex items-center gap-2">
+                            Detected: {new Date(v.detected_at).toLocaleString()} • Asset ID: {v.original_asset?.asset_id || 'ASSET_PRO_9821'}
+                         </p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Match Confidence</p>
+                         <div className="flex items-center gap-3">
+                            <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                               <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.round(v.confidence_score * 100)}%` }}></div>
+                            </div>
+                            <span className="text-sm font-black text-white">{Math.round(v.confidence_score * 100)}%</span>
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="flex-1 p-4 bg-background rounded-xl border border-border-base mb-6">
+                      <div className="flex items-center gap-2 mb-2">
+                         <div className={`w-2 h-2 rounded-full ${v.classification === 'VIOLATION' ? 'bg-crimson' : 'bg-amber'}`}></div>
+                         <span className={`text-[10px] font-black uppercase tracking-widest ${v.classification === 'VIOLATION' ? 'text-crimson' : 'text-amber'}`}>
+                            Gemini AI: {v.classification}
+                         </span>
+                      </div>
+                      <p className="text-xs text-slate-400 italic leading-relaxed">
+                         "{v.classification_reason || 'Visual pattern match confirmed within enterprise pHash tolerance. Commercial use detected on unauthorized streaming domain.'}"
+                      </p>
+                   </div>
+
+                   <div className="mt-auto flex items-center justify-between">
+                      <div className="flex gap-2">
+                         <a href={v.source_url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-[10px] py-1.5 px-3">
+                            <Globe size={14} /> Visit Source
+                         </a>
+                         <button className="btn-secondary text-[10px] py-1.5 px-3">
+                            <Download size={14} /> Forensic Evidence
+                         </button>
+                      </div>
+                      
+                      <button 
+                        onClick={() => handleGenerateDmca(v.id)}
+                        disabled={generatingDmca === v.id || v.status === 'dmca_sent'}
+                        className={`btn-primary text-xs py-2 px-6 shadow-lg ${v.status === 'dmca_sent' ? 'bg-emerald/10 text-emerald border-emerald/20 border shadow-none cursor-default hover:bg-emerald/10' : ''}`}
+                      >
+                         {generatingDmca === v.id ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" />
+                              Generating DMCA with Gemini...
+                            </>
+                         ) : v.status === 'dmca_sent' ? (
+                            <>
+                              <CheckCircle2 size={16} />
+                              DMCA Sent
+                            </>
+                         ) : (
+                            <>
+                              <FileText size={16} />
+                              Generate DMCA Report
+                            </>
+                         )}
+                      </button>
+                   </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

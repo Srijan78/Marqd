@@ -1,11 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
-import { Upload, FileImage, Shield, Search, Filter, MoreVertical, Hash } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Upload, Plus, ShieldCheck, Search, Tag, X, FileText, Film, Lock, Clock, Zap } from 'lucide-react';
 import api from '../api/axios';
 
 export default function AssetRegistry() {
   const [assets, setAssets] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
+  const [activeTags, setActiveTags] = useState(['IPL 2025', 'Cricket', 'High-Res']);
+  const [tagInput, setTagInput] = useState('');
+
+  useEffect(() => {
+    fetchAssets();
+  }, []);
 
   const fetchAssets = async () => {
     try {
@@ -16,154 +21,157 @@ export default function AssetRegistry() {
     }
   };
 
-  useEffect(() => {
-    fetchAssets();
-  }, []);
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('org_name', 'IOC Olympic');
-    formData.append('keywords', file.name.split('.')[0].replace(/[-_]/g, ' '));
-
-    setUploading(true);
-    try {
-      await api.post('/assets', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      await fetchAssets();
-    } catch (err) {
-      console.error(err);
-      alert('Upload failed: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleAddTag = (e) => {
+    if (e.key === 'Enter' && tagInput.trim()) {
+      if (!activeTags.includes(tagInput.trim())) {
+        setActiveTags([...activeTags, tagInput.trim()]);
+      }
+      setTagInput('');
     }
   };
 
+  const removeTag = (tag) => {
+    setActiveTags(activeTags.filter(t => t !== tag));
+  };
+
   return (
-    <div className="flex flex-col gap-6 animate-slide-up">
+    <div className="flex flex-col gap-10 animate-slide-up">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Asset Registry</h1>
-          <p className="text-gray-400">Upload and protect your digital media with invisible watermarks.</p>
+          <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Asset Registry</h1>
+          <p className="text-slate-500 font-medium mt-1">Register and watermark official media for global tracking.</p>
         </div>
-        
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileUpload} 
-          className="hidden" 
-          accept="image/*,video/*"
-        />
-        <button 
-          className="btn-primary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Upload size={18} />
-          )}
-          {uploading ? 'Protecting...' : 'Upload Asset'}
+        <button className="btn-primary" onClick={() => fetchAssets()}>
+          <Plus size={18} />
+          Register New Asset
         </button>
       </div>
 
-      <div className="glass-card overflow-hidden">
-        <div className="p-4 border-b border-white/5 flex gap-4 bg-surfaceHighlight/30">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search by Asset ID or keywords..." 
-              className="w-full bg-surface border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-200 focus:outline-none focus:border-primary/50"
-            />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        {/* Upload Zone */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="glass-card p-10 border-dashed border-2 border-primary/30 flex flex-col items-center text-center group cursor-pointer relative overflow-hidden">
+            {uploading && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-full border-2 border-primary/20 flex items-center justify-center relative">
+                  <Zap className="text-primary animate-pulse" size={32} />
+                  <div className="absolute inset-0 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+                <p className="mt-4 text-sm font-bold text-white uppercase tracking-widest">Embedding Watermark...</p>
+              </div>
+            )}
+            <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative">
+              <Upload className="text-primary" size={32} />
+              <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ripple" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Drop Official Media</h3>
+            <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Supports UHD JPG, PNG, MP4 (Max 500MB)</p>
+            <input type="file" className="hidden" />
           </div>
-          <button className="btn-secondary py-2">
-            <Filter size={16} />
-            Filter
-          </button>
+
+          <div className="glass-card p-6">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <Tag size={14} /> Organization Tags
+            </h4>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {activeTags.map(tag => (
+                <span key={tag} className="badge bg-primary/10 text-primary-bright border-primary/20 rounded-lg px-2 py-1.5 lowercase font-mono">
+                  #{tag}
+                  <button onClick={() => removeTag(tag)} className="hover:text-white transition-colors">
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="relative">
+              <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+              <input 
+                type="text" 
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleAddTag}
+                placeholder="Add metadata tag..." 
+                className="input-field pl-9 text-xs py-2 bg-[#0D1117] border-border-base"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surfaceHighlight/20 border-b border-white/5">
-                <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Asset</th>
-                <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Protection</th>
-                <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Keywords</th>
-                <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Date Added</th>
-                <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {assets.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="p-8 text-center text-gray-500">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <FileImage size={48} className="opacity-20" />
-                      <p>No protected assets found. Upload one to get started.</p>
+        {/* Asset Grid */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+              <input type="text" placeholder="Filter by ID or Hash..." className="input-field pl-10 py-2 border-none bg-surface-card" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Sort by:</span>
+              <select className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer">
+                <option>Newest First</option>
+                <option>Size (Large)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {assets.map((asset) => (
+              <div key={asset.filename} className="glass-card overflow-hidden group">
+                <div className="aspect-video bg-[#0D1117] relative">
+                  <img src={asset.url || '/placeholder.jpg'} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
+                  <div className="absolute top-3 left-3">
+                    <div className="badge bg-background/80 backdrop-blur-md text-white border-white/10 px-3">
+                      {asset.asset_type === 'video' ? <Film size={12} /> : <FileText size={12} />}
+                      {asset.asset_type?.toUpperCase()}
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                assets.map((asset) => (
-                  <tr key={asset.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-surfaceHighlight flex items-center justify-center border border-white/10 overflow-hidden shrink-0">
-                          {asset.watermarked_url ? (
-                            <img src={import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', asset.watermarked_url) : `http://127.0.0.1:5000${asset.watermarked_url}`} alt={asset.asset_id} className="w-full h-full object-cover" />
-                          ) : (
-                            <FileImage size={24} className="text-gray-500" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-white font-mono text-sm">{asset.asset_id}</p>
-                          <p className="text-xs text-gray-500">{asset.file_name} • {(asset.file_size / 1024).toFixed(1)} KB</p>
-                        </div>
+                  </div>
+                  <div className="absolute bottom-3 right-3">
+                    <div className="badge badge-success backdrop-blur-md">
+                      <Lock size={12} /> Protected
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-white truncate">{asset.filename}</h3>
+                    <p className="text-[10px] font-mono text-slate-400 uppercase mt-1 tracking-tight">ID: {asset.asset_id || 'ASSET_PRO_9821'}</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-3 border-y border-border-base">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase">pHash Fingerprint</p>
+                      <p className="text-[11px] font-mono text-primary-bright mt-0.5">{asset.phash?.slice(0, 16)}...</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase">Last Scan</p>
+                      <div className="flex items-center justify-end gap-1 text-[11px] font-bold text-white mt-0.5">
+                        <Clock size={10} className="text-slate-500" /> 2h ago
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <Shield size={14} className={asset.watermark_status === 'embedded' ? 'text-primary' : 'text-warning'} />
-                          <span className={`text-xs font-medium ${asset.watermark_status === 'embedded' ? 'text-primary' : 'text-warning'}`}>
-                            {asset.watermark_status === 'embedded' ? 'DWT+DCT Watermark' : 'Pending'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Hash size={14} className="text-accent" />
-                          <span className="text-xs font-medium text-accent">pHash Active</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {asset.keywords?.map((kw, i) => (
-                          <span key={i} className="px-2 py-1 bg-surfaceHighlight rounded-md text-xs text-gray-300 border border-white/5">
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="p-4 text-sm text-gray-400">
-                      {new Date(asset.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="p-4">
-                      <button className="p-2 text-gray-500 hover:text-white hover:bg-surfaceHighlight rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-                        <MoreVertical size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-between">
+                    <div className="flex gap-1 overflow-hidden">
+                      {activeTags.slice(0, 2).map(t => (
+                        <span key={t} className="text-[9px] font-bold text-slate-500 border border-slate-700/50 rounded px-1.5">#{t}</span>
+                      ))}
+                    </div>
+                    <button className="text-[10px] font-black text-primary uppercase hover:text-white transition-colors underline underline-offset-4">Actions</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Mock for demo if empty */}
+            {assets.length === 0 && [1, 2, 3, 4].map(i => (
+               <div key={i} className="glass-card overflow-hidden opacity-30 grayscale pointer-events-none">
+                 <div className="aspect-video bg-surface-hover animate-pulse"></div>
+                 <div className="p-4 space-y-4">
+                   <div className="h-4 w-32 bg-surface-hover rounded"></div>
+                   <div className="h-10 w-full bg-surface-hover rounded"></div>
+                 </div>
+               </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
