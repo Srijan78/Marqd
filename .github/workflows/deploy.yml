@@ -32,8 +32,6 @@ jobs:
           flags: |
             --add-cloudsql-instances=marqd-494514:us-central1:marqd-db
             --allow-unauthenticated
-            --memory=2Gi
-            --cpu=2
           env_vars: |
             DB_USER=postgres
             DB_PASS=${{ secrets.DB_PASSWORD }}
