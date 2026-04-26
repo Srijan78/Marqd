@@ -47,8 +47,8 @@ jobs:
 
       - name: Inject Backend URL into Vite
         run: |
-          echo "VITE_API_URL=${{ needs.deploy-backend.outputs.backend_url }}/api" > frontend/.env.local
-          echo "VITE_API_KEY=${{ secrets.API_KEY }}" >> frontend/.env.local
+          echo "VITE_API_URL=${{ needs.deploy-backend.outputs.backend_url }}/api" > frontend/.env.production
+          echo "VITE_API_KEY=${{ secrets.API_KEY }}" >> frontend/.env.production
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
