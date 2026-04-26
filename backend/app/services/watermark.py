@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 class WatermarkService:
     """Handles invisible watermark embedding and extraction."""
 
-    # Watermark image dimensions — the watermark is encoded as a small binary image
-    WM_WIDTH = 64
-    WM_HEIGHT = 64
+    # Watermark dimensions — reduced to 16x16 (256 bits) to ensure 
+    # compatibility with smaller YouTube thumbnails (SD/HQ).
+    WM_WIDTH = 16
+    WM_HEIGHT = 16
 
     @staticmethod
     def _text_to_bits(text: str) -> np.ndarray:
@@ -136,7 +137,7 @@ class WatermarkService:
         confidence = match_chars / max_len
 
         return {
-            "match": confidence > 0.7,  # 70% threshold for match
+            "match": confidence > 0.7,
             "extracted_id": extracted_id,
             "confidence": round(confidence, 4),
         }
