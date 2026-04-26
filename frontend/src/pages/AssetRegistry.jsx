@@ -61,7 +61,9 @@ export default function AssetRegistry() {
     const assetId = asset.id;
     setDownloadStates(prev => ({ ...prev, [assetId]: 'loading' }));
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`;
+      const url = asset.watermarked_url?.startsWith('http') 
+        ? asset.watermarked_url 
+        : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
@@ -167,7 +169,7 @@ export default function AssetRegistry() {
             {assets.map((asset) => (
               <div key={asset.id} className="glass-card overflow-hidden group">
                 <div className="aspect-video bg-[#0D1117] relative">
-                  <img src={`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
+                  <img src={asset.watermarked_url?.startsWith('http') ? asset.watermarked_url : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
                   <div className="absolute top-3 left-3">
                     <div className="badge bg-background/80 backdrop-blur-md text-white border-white/10 px-3">
                       {asset.asset_type === 'video' ? <Film size={12} /> : <FileText size={12} />}

@@ -30,10 +30,12 @@ class StorageService:
         env = current_app.config.get("FLASK_ENV", "development")
         bucket_name = current_app.config.get("GCS_BUCKET_NAME")
 
-        if env == "production" and bucket_name:
+        if env == "production":
+            if not bucket_name:
+                raise RuntimeError("GCS_BUCKET_NAME must be configured in production")
             return StorageService._upload_to_gcs(local_path, destination_name, content_type)
-        else:
-            return StorageService._store_locally(local_path, destination_name)
+
+        return StorageService._store_locally(local_path, destination_name)
 
     @staticmethod
     def _upload_to_gcs(local_path: str, destination_name: str, content_type: str = None) -> str:
@@ -42,7 +44,10 @@ class StorageService:
             from google.cloud import storage
 
             bucket_name = current_app.config["GCS_BUCKET_NAME"]
-            client = storage.Client()
+            project_id = current_app.config.get("GOOGLE_CLOUD_PROJECT")
+
+            # On Cloud Run, ADC is automatically available from the service account.
+            client = storage.Client(project=project_id) if project_id else storage.Client()
             bucket = client.bucket(bucket_name)
             blob = bucket.blob(destination_name)
 
@@ -50,16 +55,21 @@ class StorageService:
                 blob.content_type = content_type
 
             blob.upload_from_filename(local_path)
-            blob.make_public()
+
+            # Some buckets enforce uniform bucket-level access, where make_public is not allowed.
+            # Upload already succeeded, so keep going and rely on bucket IAM/public policy.
+            try:
+                blob.make_public()
+            except Exception as public_exc:
+                logger.warning(f"Uploaded to GCS but could not set object ACL public: {public_exc}")
 
             url = blob.public_url
             logger.info(f"Uploaded to GCS: {url}")
             return url
 
         except Exception as e:
-            logger.error(f"GCS upload failed: {e}")
-            # Fallback to local storage
-            return StorageService._store_locally(local_path, destination_name)
+            logger.error(f"GCS upload failed: {e}", exc_info=True)
+            raise RuntimeError("GCS upload failed in production") from e
 
     @staticmethod
     def _store_locally(local_path: str, destination_name: str) -> str:
