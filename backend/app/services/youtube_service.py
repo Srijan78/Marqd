@@ -165,12 +165,12 @@ class YouTubeService:
             temp_dir = current_app.config["TEMP_FOLDER"]
             os.makedirs(temp_dir, exist_ok=True)
 
-            # Requesting smaller thumbnails first to prevent OOM errors in 512MiB Cloud Run instances
+            # Prioritize maxresdefault.jpg (1080p) as blind-watermark requires a large enough image to extract a 128x128 watermark
             thumbnail_urls = [
+                f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
-                f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/1.jpg",
                 f"https://img.youtube.com/vi/{video_id}/2.jpg",
                 f"https://img.youtube.com/vi/{video_id}/3.jpg",
