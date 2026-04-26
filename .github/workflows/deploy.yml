@@ -30,7 +30,10 @@ jobs:
             --add-cloudsql-instances=marqd-494514:us-central1:marqd-db
             --allow-unauthenticated
           env_vars: |
-            DATABASE_URL=postgresql://postgres:${{ secrets.DB_PASSWORD }}@/marqd?host=/cloudsql/marqd-494514:us-central1:marqd-db
+            DB_USER=postgres
+            DB_PASS=${{ secrets.DB_PASSWORD }}
+            DB_NAME=marqd
+            DB_INSTANCE_NAME=marqd-494514:us-central1:marqd-db
             GCS_BUCKET_NAME=marqd-assets
             USE_MOCK_APIS=false
             API_KEY=${{ secrets.API_KEY }}

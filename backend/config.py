@@ -15,9 +15,21 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "sqlite:///marqd.db"
-    )
+    # Database logic
+    _db_user = os.getenv("DB_USER", "postgres")
+    _db_pass = os.getenv("DB_PASS", "")
+    _db_name = os.getenv("DB_NAME", "marqd")
+    _db_instance = os.getenv("DB_INSTANCE_NAME")
+    
+    import urllib.parse
+    _encoded_pass = urllib.parse.quote_plus(_db_pass)
+    
+    if os.getenv("DATABASE_URL"):
+        SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
+    elif _db_instance:
+        SQLALCHEMY_DATABASE_URI = f"postgresql://{_db_user}:{_encoded_pass}@/{_db_name}?host=/cloudsql/{_db_instance}"
+    else:
+        SQLALCHEMY_DATABASE_URI = "sqlite:///marqd.db"
 
     # Google Cloud
     GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
