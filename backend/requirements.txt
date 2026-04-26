@@ -7,6 +7,7 @@ imagehash==4.3.1
 Pillow
 opencv-python-headless==4.9.0.80
 video-invisible-watermark==0.1.0
+requests==2.31.0
 google-api-python-client==2.131.0
 serpapi==0.1.5
 google-generativeai==0.7.2
