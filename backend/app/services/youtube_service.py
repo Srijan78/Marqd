@@ -41,7 +41,7 @@ class YouTubeService:
         Returns:
             List of dicts with video metadata
         """
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             return YouTubeService._mock_search(keywords)
@@ -147,7 +147,7 @@ class YouTubeService:
             logger.warning(f"Refusing frame extraction for invalid video_id: {video_id!r}")
             return []
 
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             return YouTubeService._mock_extract_frames(video_id)

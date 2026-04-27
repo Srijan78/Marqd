@@ -26,7 +26,7 @@ class SerpApiService:
         Returns:
             List of dicts with keys: url, domain, title, thumbnail, source, geo, found_at
         """
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             return SerpApiService._mock_search(asset_id, image_url)

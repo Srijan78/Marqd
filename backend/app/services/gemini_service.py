@@ -73,7 +73,7 @@ class GeminiService:
         Returns:
             List of dicts with 'url', 'domain', 'category', 'reason'
         """
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             return GeminiService._mock_classify(urls, org_name)
@@ -161,7 +161,7 @@ Return ONLY valid JSON array: [{{"url": "...", "domain": "...", "category": "...
         if not detection_date:
             detection_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             return GeminiService._mock_dmca(

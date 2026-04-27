@@ -21,7 +21,7 @@ class VerificationService:
     @staticmethod
     def download_image(url: str) -> str | None:
         """Download an image from a URL to a temporary file."""
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             # Return a dummy image path
@@ -99,7 +99,7 @@ class VerificationService:
         Returns:
             Dict containing match status, confidence score, etc.
         """
-        use_mock = current_app.config.get("USE_MOCK_APIS", True)
+        use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
             # Always return a match in mock mode for testing
