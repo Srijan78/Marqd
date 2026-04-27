@@ -27,6 +27,15 @@ class ScannerService:
     """Orchestrates the entire scanning and verification process."""
 
     @staticmethod
+    def _check_stop_requested() -> bool:
+        """Check if a stop has been requested via the DB stop flag."""
+        state = ScanState.query.first()
+        if state and state.stop_requested:
+            logger.info("Stop signal detected. Halting operation.")
+            return True
+        return False
+
+    @staticmethod
     def scan_all_assets() -> dict:
         """Run scan for all embedded assets (intended for APScheduler)."""
         state = ScanState.get()
@@ -72,6 +81,11 @@ class ScannerService:
                 state.last_updated = datetime.now(timezone.utc)
                 db.session.commit()
                 logger.info(f"--- Asset {asset.asset_id} scan complete: {res} ---")
+
+                # Double-check stop flag after each asset completes
+                if ScannerService._check_stop_requested():
+                    logger.info("Stop signal detected after asset completion. Halting scan.")
+                    break
         finally:
             # Always clear the scanning flag when done, even if an error occurs
             state.is_scanning = False
@@ -176,6 +190,11 @@ class ScannerService:
 
             db.session.commit()
 
+            # Check for stop signal before processing results
+            if ScannerService._check_stop_requested():
+                logger.info(f"[{asset.asset_id}] Stop signal detected before processing results. Skipping verification.")
+                return {"serpapi_results": len(serpapi_results), "youtube_results": len(youtube_results), "violations_created": 0}
+
             # 3. Process SerpApi Results (Verify + Classify)
             if serpapi_results:
                 logger.info(f"[{asset.asset_id}] Processing {len(serpapi_results)} SerpApi results...")
@@ -219,6 +238,11 @@ class ScannerService:
         logger.info(f"[{asset.asset_id}] Gemini: Classification complete")
 
         for idx, result in enumerate(results):
+            # Check for stop signal before processing each result
+            if ScannerService._check_stop_requested():
+                logger.info(f"[{asset.asset_id}] Stopping web result processing at result {idx+1}/{len(results)}")
+                break
+
             url = result["url"]
             thumbnail = result.get("thumbnail")
 
@@ -301,6 +325,11 @@ class ScannerService:
         logger.info(f"[{asset.asset_id}] Gemini: YouTube classification complete")
 
         for idx, result in enumerate(results):
+            # Check for stop signal before processing each result
+            if ScannerService._check_stop_requested():
+                logger.info(f"[{asset.asset_id}] Stopping YouTube result processing at result {idx+1}/{len(results)}")
+                break
+
             video_id = result.get("video_id", "")
             if not YouTubeService.validate_video_id(video_id):
                 logger.warning(f"[{asset.asset_id}] YT result {idx+1}: SKIP (invalid video_id: {video_id!r})")
