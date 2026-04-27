@@ -45,6 +45,7 @@ class Config:
     # App settings
     USE_MOCK_APIS = os.getenv("USE_MOCK_APIS", "false").lower() == "true"
     SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "24"))
+    PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", "").rstrip("/")
 
     # File uploads
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")

@@ -53,13 +53,15 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [assetsRes, violationsRes] = await Promise.all([
+        const [assetsRes, violationsRes, scansRes] = await Promise.all([
           api.get('/assets'),
-          api.get('/violations')
+          api.get('/violations'),
+          api.get('/scans')
         ]);
         
         const assets = assetsRes.data.assets || [];
         const violations = violationsRes.data.violations || [];
+        setScanning(Boolean(scansRes.data?.is_scanning));
         
         setStats({
           totalAssets: assets.length,
@@ -109,14 +111,26 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [scanning]);
 
-  const handleScan = () => {
-    setScanning(true);
-    // Fire and forget, polling will handle the completion state
-    api.post('/scans/trigger').catch(err => {
+  const handleScan = async () => {
+    try {
+      const res = await api.post('/scans/trigger');
+      const status = res.data?.status;
+
+      if (status === 'started' || status === 'already_running') {
+        setScanning(true);
+        if (status === 'already_running') {
+          alert('A scan is already running. Monitoring live status.');
+        }
+        return;
+      }
+
+      setScanning(false);
+      alert('Scan did not start. Please try again.');
+    } catch (err) {
       console.error('Failed to trigger scan:', err);
       setScanning(false);
       alert('Scan failed to start.');
-    });
+    }
   };
 
   const handleStopScan = async () => {

@@ -67,6 +67,10 @@ class ScannerService:
                     "asset_id": asset.asset_id,
                     "status": "success" if res else "failed"
                 })
+
+                # Heartbeat so stale-state detection does not trip during long scans.
+                state.last_updated = datetime.now(timezone.utc)
+                db.session.commit()
                 logger.info(f"--- Asset {asset.asset_id} scan complete: {res} ---")
         finally:
             # Always clear the scanning flag when done, even if an error occurs
@@ -105,12 +109,20 @@ class ScannerService:
                         )
                         serpapi_url = None  # Skip this asset's SerpApi search
                     else:
-                        # Dev fallback: use a publicly-accessible image for smoke-testing
-                        logger.warning(
-                            f"[{asset.asset_id}] SerpApi: DEV mode — using placeholder URL "
-                            f"(local path cannot be indexed by Google)"
-                        )
-                        serpapi_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/800px-JPEG_example_flower.jpg"
+                        public_backend_url = current_app.config.get("PUBLIC_BACKEND_URL", "")
+                        if public_backend_url:
+                            serpapi_url = f"{public_backend_url}/api{serpapi_url}"
+                            logger.info(
+                                f"[{asset.asset_id}] SerpApi: DEV mode — using tunneled upload URL: "
+                                f"{serpapi_url[:120]}"
+                            )
+                        else:
+                            # Dev fallback: use a publicly-accessible image for smoke-testing
+                            logger.warning(
+                                f"[{asset.asset_id}] SerpApi: DEV mode — using placeholder URL "
+                                f"(set PUBLIC_BACKEND_URL to test your own local uploads with SerpApi)"
+                            )
+                            serpapi_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/800px-JPEG_example_flower.jpg"
 
                 if serpapi_url:
                     logger.info(f"[{asset.asset_id}] SerpApi: Calling reverse_image_search with URL: {serpapi_url[:80]}")

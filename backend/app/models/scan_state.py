@@ -37,3 +37,15 @@ class ScanState(db.Model):
             "stop_requested": self.stop_requested,
             "last_updated": self.last_updated.isoformat() if self.last_updated else None,
         }
+
+    def is_stale(self, max_age_seconds: int = 1800) -> bool:
+        """Return True when scan state is old enough to be considered stale."""
+        if not self.last_updated:
+            return True
+
+        last_updated = self.last_updated
+        if last_updated.tzinfo is None:
+            last_updated = last_updated.replace(tzinfo=timezone.utc)
+
+        age_seconds = (datetime.now(timezone.utc) - last_updated).total_seconds()
+        return age_seconds > max_age_seconds

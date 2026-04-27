@@ -2,6 +2,7 @@
 Scans API — Trigger and view scan history.
 """
 import threading
+import logging
 from flask import Blueprint, jsonify
 from app.models.scan_log import ScanLog
 from app.models.scan_state import ScanState
@@ -9,6 +10,10 @@ from app.models.asset import Asset
 from app.models import db
 
 scans_bp = Blueprint("scans", __name__)
+logger = logging.getLogger(__name__)
+
+# A scan marked active for longer than this without reset is treated as stale.
+STALE_SCAN_MAX_AGE_SECONDS = 1800
 
 
 @scans_bp.route("/scans/trigger", methods=["POST"])
@@ -18,6 +23,14 @@ def trigger_scan_all():
     from app.services.scanner import ScannerService
 
     state = ScanState.get()
+
+    # Recover from stale state after worker/thread crashes or container restarts.
+    if state.is_scanning and state.is_stale(STALE_SCAN_MAX_AGE_SECONDS):
+        logger.warning("Stale scan_state detected during trigger. Auto-resetting state.")
+        state.is_scanning = False
+        state.stop_requested = False
+        db.session.commit()
+
     if state.is_scanning:
         return jsonify({"message": "Scan already in progress", "status": "already_running"}), 200
 
@@ -98,6 +111,7 @@ def get_scan_history():
     return jsonify({
         "count": len(logs),
         "is_scanning": state.is_scanning,
+        "scan_state": state.to_dict(),
         "scan_logs": [l.to_dict() for l in logs],
         "usage_summary": {
             "serpapi_units_used": total_serpapi_units,
