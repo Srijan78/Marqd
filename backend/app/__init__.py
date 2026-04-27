@@ -36,6 +36,7 @@ def create_app(config_override=None):
         from app.models.asset import Asset
         from app.models.violation import Violation
         from app.models.scan_log import ScanLog
+        from app.models.scan_state import ScanState
         db.create_all()
 
     # Register API blueprints

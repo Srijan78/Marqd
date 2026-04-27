@@ -26,8 +26,24 @@ def trigger_scan_all():
     app = current_app._get_current_object()
 
     def run_scan():
+        import logging
+        scan_logger = logging.getLogger(__name__)
         with app.app_context():
-            ScannerService.scan_all_assets()
+            try:
+                scan_logger.info("Background scan thread started.")
+                ScannerService.scan_all_assets()
+                scan_logger.info("Background scan thread completed successfully.")
+            except Exception as e:
+                scan_logger.error(f"Background scan thread CRASHED: {e}", exc_info=True)
+                # Force-reset scan state so it doesn't stay stuck forever
+                try:
+                    state = ScanState.get()
+                    state.is_scanning = False
+                    state.stop_requested = False
+                    db.session.commit()
+                    scan_logger.info("Scan state force-reset after crash.")
+                except Exception as reset_err:
+                    scan_logger.error(f"Failed to reset scan state after crash: {reset_err}")
 
     thread = threading.Thread(target=run_scan, daemon=True)
     thread.start()
@@ -88,4 +104,18 @@ def get_scan_history():
             "youtube_units_used": total_youtube_units,
             "total_scans": len(logs),
         }
+    })
+
+
+@scans_bp.route("/scans/reset", methods=["POST"])
+def reset_scan_state():
+    """Emergency reset: force is_scanning=False when a scan thread crashed and left it stuck."""
+    state = ScanState.get()
+    was_scanning = state.is_scanning
+    state.is_scanning = False
+    state.stop_requested = False
+    db.session.commit()
+    return jsonify({
+        "message": "Scan state reset successfully",
+        "was_stuck": was_scanning,
     })
