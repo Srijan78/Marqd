@@ -2,6 +2,7 @@
 Marqd Flask Application Factory
 """
 import os
+import logging
 from flask import Flask
 from flask_cors import CORS
 
@@ -12,6 +13,12 @@ from app.api import register_blueprints
 
 def create_app(config_override=None):
     """Create and configure the Flask application."""
+    # Configure logging FIRST so all logger.info() calls are visible in Cloud Run
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
     app = Flask(__name__)
 
     # Load config

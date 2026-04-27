@@ -43,7 +43,7 @@ class Config:
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
     # App settings
-    USE_MOCK_APIS = os.getenv("USE_MOCK_APIS", "true").lower() == "true"
+    USE_MOCK_APIS = os.getenv("USE_MOCK_APIS", "false").lower() == "true"
     SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "24"))
 
     # File uploads
