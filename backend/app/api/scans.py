@@ -87,15 +87,16 @@ def trigger_scan_single(asset_db_id):
 
 @scans_bp.route("/scans/stop", methods=["POST"])
 def stop_scan():
-    """Gracefully stop an ongoing master scan."""
+    """Gracefully stop an ongoing master scan and force UI to stop polling."""
     state = ScanState.get()
 
     if not state.is_scanning:
         return jsonify({"message": "No scan is currently running", "status": "ignored"}), 200
 
     state.stop_requested = True
+    state.is_scanning = False  # Immediately unlock UI so reloads don't resume polling
     db.session.commit()
-    return jsonify({"message": "Stop signal sent. Scan will finish the current asset and halt.", "status": "stopping"})
+    return jsonify({"message": "Stop signal sent. UI unlocked.", "status": "stopping"})
 
 
 @scans_bp.route("/scans", methods=["GET"])
@@ -103,6 +104,13 @@ def get_scan_history():
     """Get scan history with API usage breakdown and current scan status."""
     logs = ScanLog.query.order_by(ScanLog.scanned_at.desc()).limit(100).all()
     state = ScanState.get()
+
+    # If the state has been stuck scanning for > 30 mins, forcefully clear it
+    if state.is_scanning and state.is_stale(STALE_SCAN_MAX_AGE_SECONDS):
+        logger.warning("Stale scan_state detected during GET. Auto-resetting state.")
+        state.is_scanning = False
+        state.stop_requested = False
+        db.session.commit()
 
     # Aggregate stats
     total_serpapi_units = sum(l.api_units_used for l in logs if l.channel == "serpapi")
