@@ -2,13 +2,14 @@
 YouTube Service — Discovery Channel 2: YouTube Data API v3.
 
 Searches YouTube for newly uploaded videos matching asset keywords.
-For each suspicious video, yt-dlp extracts keyframes for watermark verification.
+For each suspicious video, the service downloads official YouTube thumbnails
+as verification frames.
 Covers YouTube videos and Shorts even before Google indexes them.
 """
 import os
+import re
 import logging
 import requests
-import tempfile
 from datetime import datetime, timezone, timedelta
 from flask import current_app
 
@@ -17,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 class YouTubeService:
     """Handles YouTube Data API search and thumbnail extraction."""
+
+    # Accept standard YouTube-safe token characters to prevent malformed IDs.
+    VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
+
+    @staticmethod
+    def validate_video_id(video_id: str) -> bool:
+        """Return True when a video_id uses only safe YouTube token characters."""
+        if not isinstance(video_id, str):
+            return False
+        return bool(YouTubeService.VIDEO_ID_PATTERN.fullmatch(video_id))
 
     @staticmethod
     def search_videos(keywords: str, published_after: str = None) -> list[dict]:
@@ -88,6 +99,10 @@ class YouTubeService:
                     snippet = item.get("snippet", {})
                     video_id = item.get("id", {}).get("videoId", "")
 
+                    if not YouTubeService.validate_video_id(video_id):
+                        logger.warning(f"Skipping YouTube item with invalid video_id: {video_id!r}")
+                        continue
+
                     all_results.append({
                         "video_id": video_id,
                         "title": snippet.get("title", ""),
@@ -128,6 +143,10 @@ class YouTubeService:
         Returns:
             List of file paths to extracted frame images
         """
+        if not YouTubeService.validate_video_id(video_id):
+            logger.warning(f"Refusing frame extraction for invalid video_id: {video_id!r}")
+            return []
+
         use_mock = current_app.config.get("USE_MOCK_APIS", True)
 
         if use_mock:

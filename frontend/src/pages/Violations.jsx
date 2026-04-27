@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { AlertTriangle, ShieldCheck, ExternalLink, X, FileText, Download, Loader2, Globe, Play, Search, Filter, CheckCircle2, ShieldAlert } from 'lucide-react';
 import api from '../api/axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api';
+
+const toAbsoluteUrl = (url) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 const PlatformTab = ({ active, label, count, onClick }) => (
   <button 
     onClick={onClick}
@@ -49,8 +56,7 @@ export default function Violations() {
       setViolations(prev => prev.map(v => v.id === id ? { ...v, status: 'dmca_sent' } : v));
       
       if (res.data.report_url) {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api';
-        window.open(`${baseUrl}${res.data.report_url}`, '_blank');
+        window.open(toAbsoluteUrl(res.data.report_url), '_blank');
       }
     } catch (err) {
       console.error('Failed to generate DMCA:', err);
@@ -126,7 +132,7 @@ export default function Violations() {
                 <div className="md:w-80 flex shrink-0 h-48 md:h-auto">
                    <div className="flex-1 relative group overflow-hidden bg-surface-card">
                       <img 
-                        src={v.original_asset?.original_url ? `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${v.original_asset.original_url}` : '/placeholder.jpg'} 
+                        src={v.original_asset?.original_url ? toAbsoluteUrl(v.original_asset.original_url) : '/placeholder.jpg'} 
                         alt="Original" 
                         className="w-full h-full object-cover grayscale opacity-30 transition-all group-hover:grayscale-0 group-hover:opacity-100" 
                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/0D1117/4A5568?text=Mock+Data'; }}
@@ -138,7 +144,7 @@ export default function Violations() {
                    </div>
                    <div className="flex-1 relative group overflow-hidden bg-surface-card">
                       <img 
-                        src={v.thumbnail_url ? (v.thumbnail_url.startsWith('http') ? v.thumbnail_url : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${v.thumbnail_url}`) : '/placeholder.jpg'} 
+                        src={v.thumbnail_url ? toAbsoluteUrl(v.thumbnail_url) : '/placeholder.jpg'} 
                         alt="Infringing" 
                         className="w-full h-full object-cover transition-all" 
                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/0D1117/4A5568?text=Mock+Data'; }}

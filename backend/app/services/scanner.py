@@ -207,7 +207,11 @@ class ScannerService:
         created = 0
 
         for result in results:
-            video_id = result["video_id"]
+            video_id = result.get("video_id", "")
+            if not YouTubeService.validate_video_id(video_id):
+                logger.warning(f"Skipping YouTube result with invalid video_id: {video_id!r}")
+                continue
+
             url = f"https://www.youtube.com/watch?v={video_id}"
 
             # Check if violation already exists
@@ -215,7 +219,7 @@ class ScannerService:
             if existing:
                 continue
 
-            # Step 10 & 11 implementation: Extract frames via yt-dlp and verify
+            # Step 10 & 11 implementation: Extract thumbnail frames and verify
             frame_paths = YouTubeService.extract_frames(video_id, max_frames=3)
             is_match = False
             best_confidence = 0.0
