@@ -91,23 +91,40 @@ class ScannerService:
             serpapi_results = []
             if asset.watermarked_url:
                 serpapi_url = asset.watermarked_url
-                # In local dev, use a dummy public URL if it's a local path
+
+                # FIX: If the URL is still a local /uploads/ path, SerpApi cannot use it.
+                # In dev we used a dummy URL; in production this means the asset was not
+                # uploaded to GCS yet — skip SerpApi entirely rather than waste a credit
+                # searching for example.com/dummy.jpg.
                 if serpapi_url.startswith("/uploads/"):
-                    serpapi_url = "https://example.com/dummy.jpg"
-                    logger.warning(f"[{asset.asset_id}] SerpApi: Using dummy URL (asset has local /uploads/ path)")
+                    is_production = current_app.config.get("FLASK_ENV", "development") == "production"
+                    if is_production:
+                        logger.error(
+                            f"[{asset.asset_id}] SerpApi: SKIPPED — watermarked_url is a local path "
+                            f"'{serpapi_url}' in production. Asset was not properly uploaded to GCS."
+                        )
+                        serpapi_url = None  # Skip this asset's SerpApi search
+                    else:
+                        # Dev fallback: use a publicly-accessible image for smoke-testing
+                        logger.warning(
+                            f"[{asset.asset_id}] SerpApi: DEV mode — using placeholder URL "
+                            f"(local path cannot be indexed by Google)"
+                        )
+                        serpapi_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/800px-JPEG_example_flower.jpg"
 
-                logger.info(f"[{asset.asset_id}] SerpApi: Calling reverse_image_search with URL: {serpapi_url[:80]}")
-                serpapi_results = SerpApiService.reverse_image_search(asset.asset_id, serpapi_url)
-                logger.info(f"[{asset.asset_id}] SerpApi: Got {len(serpapi_results)} results")
+                if serpapi_url:
+                    logger.info(f"[{asset.asset_id}] SerpApi: Calling reverse_image_search with URL: {serpapi_url[:80]}")
+                    serpapi_results = SerpApiService.reverse_image_search(asset.asset_id, serpapi_url)
+                    logger.info(f"[{asset.asset_id}] SerpApi: Got {len(serpapi_results)} results")
 
-                # Log SerpApi usage
-                db.session.add(ScanLog(
-                    asset_id=asset.id,
-                    channel="serpapi",
-                    results_count=len(serpapi_results),
-                    api_units_used=1,  # 1 search = 1 credit
-                    status="completed"
-                ))
+                    # Log SerpApi usage
+                    db.session.add(ScanLog(
+                        asset_id=asset.id,
+                        channel="serpapi",
+                        results_count=len(serpapi_results),
+                        api_units_used=1,  # 1 search = 1 credit
+                        status="completed"
+                    ))
             else:
                 logger.warning(f"[{asset.asset_id}] SerpApi: SKIPPED (no watermarked_url)")
 
@@ -249,8 +266,27 @@ class ScannerService:
 
     @staticmethod
     def _process_youtube_results(asset: Asset, results: list[dict]) -> int:
-        """Extract frames from YouTube videos, verify, and create violations."""
+        """Extract frames from YouTube videos, verify with Gemini classification, and create violations."""
         created = 0
+
+        # FIX: Run Gemini classification on ALL matching YouTube results upfront,
+        # same as web results — so legitimate news channels are not blindly flagged.
+        # Build url-info dicts that match the format GeminiService expects.
+        all_url_infos = [
+            {
+                "url": f"https://www.youtube.com/watch?v={r.get('video_id', '')}",
+                "domain": "youtube.com",
+                "title": r.get("title", ""),
+                "channel_title": r.get("channel_title", ""),
+            }
+            for r in results
+            if YouTubeService.validate_video_id(r.get("video_id", ""))
+        ]
+
+        logger.info(f"[{asset.asset_id}] Gemini: Classifying {len(all_url_infos)} YouTube channels...")
+        classified = GeminiService.classify_domains(all_url_infos, asset.org_name)
+        class_map = {c["url"]: c for c in classified}
+        logger.info(f"[{asset.asset_id}] Gemini: YouTube classification complete")
 
         for idx, result in enumerate(results):
             video_id = result.get("video_id", "")
@@ -287,23 +323,48 @@ class ScannerService:
             logger.info(f"[{asset.asset_id}] YT result {idx+1}: Verification → match={is_match}, confidence={best_confidence:.2f}")
 
             if is_match:
+                # Use Gemini classification result (AUTHORIZED / SUSPICIOUS / VIOLATION)
+                c_info = class_map.get(url, {})
+                classification = c_info.get("category", "violation").lower()
+                classification_reason = c_info.get(
+                    "reason",
+                    f"Unauthorized re-upload on channel: {result.get('channel_title')}"
+                )
+
+                # Skip if Gemini says it's an authorized channel
+                if classification == "authorized":
+                    logger.info(
+                        f"[{asset.asset_id}] YT result {idx+1}: AUTHORIZED by Gemini — skipping. "
+                        f"Channel: {result.get('channel_title')} | Reason: {classification_reason}"
+                    )
+                    # Cleanup and continue
+                    for frame_path in frame_paths:
+                        if os.path.exists(frame_path):
+                            os.remove(frame_path)
+                    continue
+
+                platform = "youtube_shorts" if "shorts" in result.get("title", "").lower() else "youtube"
+
                 violation = Violation(
                     asset_id=asset.id,
                     source_url=url,
-                    platform="youtube_shorts" if "shorts" in result.get("title", "").lower() else "youtube",
+                    platform=platform,
                     domain="youtube.com",
                     confidence_score=best_confidence,
                     watermark_match=wm_match,
                     phash_distance=best_phash,
-                    classification="violation",  # YouTube re-uploads are generally violations
-                    classification_reason=f"Unauthorized re-upload on channel: {result.get('channel_title')}",
+                    classification=classification,
+                    classification_reason=classification_reason,
                     thumbnail_url=result.get("thumbnail"),
                     video_id=video_id,
                     video_title=result.get("title")
                 )
                 db.session.add(violation)
                 created += 1
-                logger.info(f"[{asset.asset_id}] YT result {idx+1}: VIOLATION CREATED → {video_id}")
+                logger.info(
+                    f"[{asset.asset_id}] YT result {idx+1}: {classification.upper()} VIOLATION CREATED "
+                    f"→ {video_id} | Channel: {result.get('channel_title')}"
+                )
 
             # Cleanup frames
             for frame_path in frame_paths:
