@@ -1,7 +1,7 @@
 """
 Gemini AI Service — Domain classification and DMCA report generation.
 
-Integrates Google Gemini 3.1 Flash Lite for two non-decorative purposes:
+Integrates Google Gemini 3.1 Flash Lite Preview for two non-decorative purposes:
 1. Domain Classification: categorize flagged URLs as AUTHORIZED/SUSPICIOUS/VIOLATION
 2. DMCA Report Generation: produce professionally worded takedown notices
 """
@@ -14,6 +14,51 @@ logger = logging.getLogger(__name__)
 
 class GeminiService:
     """Handles Gemini AI interactions for classification and report generation."""
+
+    DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+
+    @staticmethod
+    def _model_candidates(configured_model: str) -> list[str]:
+        """Build ordered candidates for the configured model and preview alias."""
+        configured = (configured_model or "").strip()
+        candidates = []
+
+        if configured:
+            candidates.append(configured)
+            if configured.startswith("models/"):
+                candidates.append(configured.replace("models/", "", 1))
+            else:
+                candidates.append(f"models/{configured}")
+
+        preview = GeminiService.DEFAULT_MODEL
+        candidates.extend([preview, f"models/{preview}"])
+
+        # Maintain order while removing duplicates.
+        unique = []
+        seen = set()
+        for candidate in candidates:
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                unique.append(candidate)
+        return unique
+
+    @staticmethod
+    def _generate_with_model(genai, prompt: str, configured_model: str):
+        """Generate content, retrying with preview alias variants when needed."""
+        errors = []
+        for candidate in GeminiService._model_candidates(configured_model):
+            try:
+                model = genai.GenerativeModel(candidate)
+                response = model.generate_content(prompt)
+                if candidate != (configured_model or "").strip():
+                    logger.warning(
+                        f"Using Gemini model fallback '{candidate}' instead of '{configured_model}'"
+                    )
+                return response
+            except Exception as e:
+                errors.append(f"{candidate}: {e}")
+
+        raise RuntimeError("Gemini generation failed for all model candidates: " + " | ".join(errors))
 
     @staticmethod
     def classify_domains(urls: list[dict], org_name: str, authorized_domains: str = "") -> list[dict]:
@@ -51,7 +96,7 @@ class GeminiService:
             import json
 
             api_key = current_app.config.get("GEMINI_API_KEY", "")
-            model_name = current_app.config.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+            model_name = current_app.config.get("GEMINI_MODEL", GeminiService.DEFAULT_MODEL)
 
             if not api_key:
                 logger.error("GEMINI_API_KEY not configured")
@@ -60,7 +105,6 @@ class GeminiService:
                         for u in urls]
 
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(model_name)
 
             url_list = "\n".join([f"- {u.get('url', '')} (domain: {u.get('domain', '')})" for u in urls])
 
@@ -72,7 +116,7 @@ URLs:
 
 Return ONLY valid JSON array: [{{"url": "...", "domain": "...", "category": "...", "reason": "..."}}]"""
 
-            response = model.generate_content(prompt)
+            response = GeminiService._generate_with_model(genai, prompt, model_name)
             text = response.text.strip()
 
             # Extract JSON from response
@@ -145,7 +189,7 @@ Return ONLY valid JSON array: [{{"url": "...", "domain": "...", "category": "...
             import google.generativeai as genai
 
             api_key = current_app.config.get("GEMINI_API_KEY", "")
-            model_name = current_app.config.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+            model_name = current_app.config.get("GEMINI_MODEL", GeminiService.DEFAULT_MODEL)
 
             if not api_key:
                 logger.error("GEMINI_API_KEY not configured — falling back to mock")
@@ -155,7 +199,6 @@ Return ONLY valid JSON array: [{{"url": "...", "domain": "...", "category": "...
                 )
 
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(model_name)
 
             platform_context = (
                 "This is for a YouTube copyright strike process."
@@ -172,7 +215,7 @@ Return ONLY valid JSON array: [{{"url": "...", "domain": "...", "category": "...
 - {platform_context}
 Format as a professional legal document ready to send."""
 
-            response = model.generate_content(prompt)
+            response = GeminiService._generate_with_model(genai, prompt, model_name)
             text = response.text.strip()
 
             logger.info(f"Gemini generated DMCA report: {len(text)} chars")

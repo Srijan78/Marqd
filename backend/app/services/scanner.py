@@ -168,34 +168,48 @@ class ScannerService:
                 continue
 
             # Step 11 implementation: Download and Verify
-            img_to_check = thumbnail if thumbnail else url
-            local_path = VerificationService.download_image(img_to_check)
+            candidate_urls = []
+            if thumbnail:
+                candidate_urls.append(thumbnail)
+            if url and url not in candidate_urls:
+                candidate_urls.append(url)
 
-            if local_path:
-                v_res = VerificationService.verify_content(local_path, asset.asset_id, asset.phash)
+            local_path = None
+            for candidate_url in candidate_urls:
+                local_path = VerificationService.download_image(candidate_url)
+                if local_path:
+                    break
 
-                if v_res["match"]:
-                    c_info = class_map.get(url, {})
+            if not local_path:
+                logger.info(
+                    f"Skipping web result; unable to download a valid image from {url}"
+                )
+                continue
 
-                    violation = Violation(
-                        asset_id=asset.id,
-                        source_url=url,
-                        platform="web",
-                        domain=result.get("domain"),
-                        confidence_score=v_res["confidence"],
-                        watermark_match=v_res["watermark_match"],
-                        phash_distance=v_res["phash_distance"],
-                        classification=c_info.get("category", "unclassified"),
-                        classification_reason=c_info.get("reason"),
-                        thumbnail_url=thumbnail,
-                        geo_location=result.get("geo")
-                    )
-                    db.session.add(violation)
-                    created += 1
+            v_res = VerificationService.verify_content(local_path, asset.asset_id, asset.phash)
 
-                # Cleanup temp file
-                if os.path.exists(local_path):
-                    os.remove(local_path)
+            if v_res["match"]:
+                c_info = class_map.get(url, {})
+
+                violation = Violation(
+                    asset_id=asset.id,
+                    source_url=url,
+                    platform="web",
+                    domain=result.get("domain"),
+                    confidence_score=v_res["confidence"],
+                    watermark_match=v_res["watermark_match"],
+                    phash_distance=v_res["phash_distance"],
+                    classification=c_info.get("category", "unclassified"),
+                    classification_reason=c_info.get("reason"),
+                    thumbnail_url=thumbnail,
+                    geo_location=result.get("geo")
+                )
+                db.session.add(violation)
+                created += 1
+
+            # Cleanup temp file
+            if os.path.exists(local_path):
+                os.remove(local_path)
 
         if created > 0:
             db.session.commit()

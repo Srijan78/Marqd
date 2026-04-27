@@ -36,22 +36,54 @@ class VerificationService:
         try:
             import requests
             import uuid
+            from PIL import Image
 
             temp_dir = current_app.config["TEMP_FOLDER"]
             os.makedirs(temp_dir, exist_ok=True)
             path = os.path.join(temp_dir, f"dl_{uuid.uuid4().hex}.jpg")
 
-            response = requests.get(url, stream=True, timeout=10)
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            }
+
+            response = requests.get(
+                url,
+                stream=True,
+                timeout=15,
+                headers=headers,
+                allow_redirects=True,
+            )
             response.raise_for_status()
+
+            content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if not content_type.startswith("image/"):
+                logger.warning(
+                    f"Skipping non-image response from {url} (Content-Type: {content_type or 'unknown'})"
+                )
+                return None
 
             with open(path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
+            try:
+                with Image.open(path) as img:
+                    img.verify()
+            except Exception as img_e:
+                if os.path.exists(path):
+                    os.remove(path)
+                logger.warning(f"Downloaded content from {url} is not a valid image: {img_e}")
+                return None
+
             return path
 
         except Exception as e:
-            logger.error(f"Failed to download image from {url}: {e}")
+            logger.warning(f"Failed to download image from {url}: {e}")
             return None
 
     @staticmethod
