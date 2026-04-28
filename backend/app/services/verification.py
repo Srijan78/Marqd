@@ -87,11 +87,42 @@ class VerificationService:
             response.raise_for_status()
 
             content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            
+            # HTML Fallback: If the URL is a webpage, try to extract its main image (og:image)
+            if content_type.startswith("text/html"):
+                import re
+                html_content = response.text
+                
+                # Look for og:image or twitter:image meta tags
+                match = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', html_content, re.IGNORECASE)
+                if not match:
+                    match = re.search(r'<meta[^>]*content="([^"]+)"[^>]*property="og:image"', html_content, re.IGNORECASE)
+                if not match:
+                    match = re.search(r'<meta[^>]*name="twitter:image"[^>]*content="([^"]+)"', html_content, re.IGNORECASE)
+                    
+                if match:
+                    extracted_url = match.group(1)
+                    # Resolve relative URLs if necessary
+                    from urllib.parse import urljoin
+                    extracted_url = urljoin(url, extracted_url)
+                    
+                    logger.debug(f"Extracted og:image {extracted_url[:60]} from HTML page {url[:60]}")
+                    
+                    # Prevent infinite recursion by removing the original referer logic 
+                    # and just directly downloading the extracted image URL.
+                    # We pass the HTML page URL as the new referer.
+                    return VerificationService.download_image(extracted_url, referer=url)
+                
+                logger.warning(
+                    f"Skipping HTML response from {url[:80]} — "
+                    f"could not find og:image or twitter:image meta tags."
+                )
+                return None
+
             if not content_type.startswith("image/"):
                 logger.warning(
                     f"Skipping non-image response from {url[:80]} "
-                    f"(Content-Type: {content_type or 'unknown'}) — "
-                    f"URL is likely an HTML page, not a direct image link."
+                    f"(Content-Type: {content_type or 'unknown'})"
                 )
                 return None
 
