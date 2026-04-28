@@ -320,6 +320,26 @@ class ScannerService:
                 db.session.add(violation)
                 created += 1
                 logger.info(f"[{asset.asset_id}] Web result {idx+1}: VIOLATION CREATED → {url[:60]}")
+            else:
+                # Fallback: Even if verification failed (likely due to thumbnail/crop/og:image), 
+                # we trust SerpApi's visual similarity.
+                c_info = class_map.get(url, {})
+                violation = Violation(
+                    asset_id=asset.id,
+                    source_url=url,
+                    platform="web",
+                    domain=result.get("domain"),
+                    confidence_score=0.75, # Conservative confidence for visual matches
+                    watermark_match=False,
+                    phash_distance=v_res.get("phash_distance"),
+                    classification=c_info.get("category", "unclassified"),
+                    classification_reason="Visual Match (Confirmed by Google Search). Detailed verification failed or blocked.",
+                    thumbnail_url=thumbnail,
+                    geo_location=result.get("geo")
+                )
+                db.session.add(violation)
+                created += 1
+                logger.info(f"[{asset.asset_id}] Web result {idx+1}: VIOLATION CREATED (Visual Match Fallback) → {url[:60]}")
 
             # Cleanup temp file
             if os.path.exists(local_path):
