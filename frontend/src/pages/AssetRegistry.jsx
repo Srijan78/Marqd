@@ -61,16 +61,17 @@ export default function AssetRegistry() {
     const assetId = asset.id;
     setDownloadStates(prev => ({ ...prev, [assetId]: 'loading' }));
     try {
-      const url = asset.watermarked_url?.startsWith('http') 
-        ? asset.watermarked_url 
+      const url = asset.watermarked_url?.startsWith('http')
+        ? asset.watermarked_url
         : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
+        
+      const response = await api.get(url, { responseType: 'blob' });
+      
       const ext = asset.file_name?.split('.').pop() || 'jpg';
       const baseName = asset.file_name?.replace(/\.[^.]+$/, '') || 'asset';
       const filename = `marqd_protected_${baseName}.${ext}`;
-      const objectUrl = URL.createObjectURL(blob);
+      
+      const objectUrl = URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = objectUrl;
       link.download = filename;
@@ -78,6 +79,7 @@ export default function AssetRegistry() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(objectUrl);
+      
       setDownloadStates(prev => ({ ...prev, [assetId]: 'done' }));
       setTimeout(() => setDownloadStates(prev => ({ ...prev, [assetId]: null })), 2000);
     } catch (err) {
@@ -88,7 +90,7 @@ export default function AssetRegistry() {
 
   const handleDelete = async (assetId) => {
     if (!window.confirm("Are you sure you want to completely delete this asset from the database and Google Cloud Storage?")) return;
-    
+
     try {
       await api.delete(`/assets/${assetId}`);
       fetchAssets();
@@ -149,12 +151,12 @@ export default function AssetRegistry() {
             </div>
             <div className="relative">
               <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
-                placeholder="Add metadata tag..." 
+                placeholder="Add metadata tag..."
                 className="input-field pl-9 text-xs py-2 bg-[#0D1117] border-border-base"
               />
             </div>
@@ -199,7 +201,7 @@ export default function AssetRegistry() {
                     <h3 className="text-sm font-bold text-white truncate">{asset.file_name}</h3>
                     <p className="text-[10px] font-mono text-slate-400 uppercase mt-1 tracking-tight">ID: {asset.asset_id}</p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between py-3 border-y border-border-base">
                     <div>
                       <p className="text-[9px] font-bold text-slate-500 uppercase">pHash Fingerprint</p>
@@ -228,7 +230,7 @@ export default function AssetRegistry() {
                         <Download size={10} />
                         {downloadStates[asset.id] === 'loading' ? 'Downloading...' : downloadStates[asset.id] === 'done' ? 'Downloaded!' : 'Download'}
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(asset.id)}
                         className="text-[10px] font-black text-crimson/80 uppercase hover:text-crimson transition-colors flex items-center gap-1"
                       >
@@ -240,16 +242,16 @@ export default function AssetRegistry() {
                 </div>
               </div>
             ))}
-            
+
             {/* Mock for demo if empty */}
             {assets.length === 0 && [1, 2, 3, 4].map(i => (
-               <div key={i} className="glass-card overflow-hidden opacity-30 grayscale pointer-events-none">
-                 <div className="aspect-video bg-surface-hover animate-pulse"></div>
-                 <div className="p-4 space-y-4">
-                   <div className="h-4 w-32 bg-surface-hover rounded"></div>
-                   <div className="h-10 w-full bg-surface-hover rounded"></div>
-                 </div>
-               </div>
+              <div key={i} className="glass-card overflow-hidden opacity-30 grayscale pointer-events-none">
+                <div className="aspect-video bg-surface-hover animate-pulse"></div>
+                <div className="p-4 space-y-4">
+                  <div className="h-4 w-32 bg-surface-hover rounded"></div>
+                  <div className="h-10 w-full bg-surface-hover rounded"></div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
