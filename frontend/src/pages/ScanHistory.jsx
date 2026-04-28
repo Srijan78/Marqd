@@ -114,27 +114,18 @@ export default function ScanHistory() {
                 </tr>
               ))}
               
-              {/* Mock for demo if empty */}
-              {scans.length === 0 && [1, 2, 3, 4, 5].map(i => (
-                <tr key={i} className="opacity-40 grayscale group hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer">
-                   <td className="px-6 py-4 font-mono text-xs text-white">OP_X882{i}</td>
-                   <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-white">MOCK_IPL_FOOTAGE_{i}</span>
-                        <span className="text-[9px] text-slate-500 font-mono">#ipl #2025</span>
+              {/* Empty state */}
+              {!loading && scans.length === 0 && (
+                <tr>
+                   <td colSpan="6" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center justify-center text-slate-500">
+                         <Activity size={32} className="mb-3 opacity-20" />
+                         <p className="font-bold text-slate-400">No scan history available</p>
+                         <p className="text-xs mt-1">Trigger a global scan to monitor your assets.</p>
                       </div>
                    </td>
-                   <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                         <Globe size={12} className="text-slate-600" />
-                         <span className="text-[10px] font-black text-slate-500 uppercase">YOUTUBE_DEEP_SCAN</span>
-                      </div>
-                   </td>
-                   <td className="px-6 py-4"><StatusTag status={i % 3 === 0 ? 'RISK' : 'CLEAN'} /></td>
-                   <td className="px-6 py-4 text-[10px] text-slate-400 font-bold">Today, 14:0{i}</td>
-                   <td className="px-6 py-4 text-right"><ChevronRight size={18} className="text-slate-700" /></td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

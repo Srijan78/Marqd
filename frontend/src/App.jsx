@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Activity, Map, Search, Menu, Bell, Hexagon, AlertTriangle, History, X, Shield, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -62,6 +62,7 @@ const GlobalScanOverlay = ({ isOpen, onClose }) => {
 
 const AppLayout = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
@@ -134,7 +135,7 @@ const AppLayout = ({ children }) => {
             </div>
             
             <button 
-              onClick={() => setIsScanning(true)}
+              onClick={() => navigate('/assets')}
               className="btn-primary text-sm shadow-[0_0_20px_rgba(108,99,255,0.3)]"
             >
               <ShieldCheck size={18} />

@@ -252,24 +252,32 @@ class ScannerService:
                 logger.info(f"[{asset.asset_id}] Web result {idx+1}: SKIP (already exists) {url[:60]}")
                 continue
 
-            # Step 11 implementation: Download and Verify
+            # Step 11: Download and Verify
             # Priority: direct image URL > thumbnail > page URL (likely HTML)
+            # Pass the page URL (url) as Referer to bypass CDN hotlink protection
+            # on X/Twitter (pbs.twimg.com), Reddit, and Google's encrypted-tbn cache.
             candidate_urls = []
             if result.get("original"):
-                candidate_urls.append(result["original"])
-            if thumbnail and thumbnail not in candidate_urls:
-                candidate_urls.append(thumbnail)
-            if url and url not in candidate_urls:
-                candidate_urls.append(url)
+                candidate_urls.append(("original", result["original"]))
+            if thumbnail and ("original" not in result or thumbnail != result.get("original")):
+                candidate_urls.append(("thumbnail", thumbnail))
+            if url and url not in [c[1] for c in candidate_urls]:
+                candidate_urls.append(("page-url", url))
+
+            if not candidate_urls:
+                logger.info(f"[{asset.asset_id}] Web result {idx+1}: SKIP (no downloadable URL) {url[:60]}")
+                continue
 
             local_path = None
-            for candidate_url in candidate_urls:
-                local_path = VerificationService.download_image(candidate_url)
+            for url_type, candidate_url in candidate_urls:
+                logger.debug(f"[{asset.asset_id}] Web result {idx+1}: Trying {url_type}: {candidate_url[:80]}")
+                local_path = VerificationService.download_image(candidate_url, referer=url)
                 if local_path:
+                    logger.debug(f"[{asset.asset_id}] Web result {idx+1}: Downloaded via {url_type}")
                     break
 
             if not local_path:
-                logger.info(f"[{asset.asset_id}] Web result {idx+1}: SKIP (download failed) {url[:60]}")
+                logger.info(f"[{asset.asset_id}] Web result {idx+1}: SKIP (all downloads blocked) {url[:60]}")
                 continue
 
             v_res = VerificationService.verify_content(local_path, asset.asset_id, asset.phash)

@@ -19,8 +19,16 @@ class VerificationService:
     """Handles the downloading and verification of flagged content."""
 
     @staticmethod
-    def download_image(url: str) -> str | None:
-        """Download an image from a URL to a temporary file."""
+    def download_image(url: str, referer: str = None) -> str | None:
+        """
+        Download an image from a URL to a temporary file.
+
+        Args:
+            url:     The direct image URL to download.
+            referer: The page URL that links to this image. Sending this as a
+                     Referer header bypasses CDN hotlink-protection on X/Twitter,
+                     Reddit, Instagram, and Google's encrypted-tbn cache.
+        """
         use_mock = current_app.config.get("USE_MOCK_APIS", False)
 
         if use_mock:
@@ -37,11 +45,13 @@ class VerificationService:
             import requests
             import uuid
             from PIL import Image
+            from urllib.parse import urlparse
 
             temp_dir = current_app.config["TEMP_FOLDER"]
             os.makedirs(temp_dir, exist_ok=True)
             path = os.path.join(temp_dir, f"dl_{uuid.uuid4().hex}.jpg")
 
+            # Base headers — mimic a real Chrome browser request
             headers = {
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -49,12 +59,28 @@ class VerificationService:
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Sec-Fetch-Dest": "image",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "cross-site",
             }
+
+            # CDN Bypass: Send the hosting page as the Referer.
+            # X/Twitter CDN (pbs.twimg.com), Reddit's preview CDN, and
+            # Google's encrypted-tbn cache all check the Referer header.
+            # Without it, they return 403 Forbidden.
+            if referer:
+                headers["Referer"] = referer
+            else:
+                # Derive referer from the image host as a fallback
+                parsed = urlparse(url)
+                headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
 
             response = requests.get(
                 url,
                 stream=True,
-                timeout=15,
+                timeout=20,
                 headers=headers,
                 allow_redirects=True,
             )
@@ -63,7 +89,9 @@ class VerificationService:
             content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
             if not content_type.startswith("image/"):
                 logger.warning(
-                    f"Skipping non-image response from {url} (Content-Type: {content_type or 'unknown'})"
+                    f"Skipping non-image response from {url[:80]} "
+                    f"(Content-Type: {content_type or 'unknown'}) — "
+                    f"URL is likely an HTML page, not a direct image link."
                 )
                 return None
 
@@ -77,13 +105,13 @@ class VerificationService:
             except Exception as img_e:
                 if os.path.exists(path):
                     os.remove(path)
-                logger.warning(f"Downloaded content from {url} is not a valid image: {img_e}")
+                logger.warning(f"Downloaded content from {url[:80]} is not a valid image: {img_e}")
                 return None
 
             return path
 
         except Exception as e:
-            logger.warning(f"Failed to download image from {url}: {e}")
+            logger.warning(f"Failed to download image from {url[:80]}: {e}")
             return None
 
     @staticmethod

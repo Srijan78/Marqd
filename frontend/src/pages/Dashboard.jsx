@@ -5,13 +5,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import api from '../api/axios';
 
 const chartData = [
-  { name: 'Mon', clean: 400, violations: 240 },
-  { name: 'Tue', clean: 300, violations: 139 },
-  { name: 'Wed', clean: 200, violations: 980 },
-  { name: 'Thu', clean: 278, violations: 390 },
-  { name: 'Fri', clean: 189, violations: 480 },
-  { name: 'Sat', clean: 239, violations: 380 },
-  { name: 'Sun', clean: 349, violations: 430 },
+  { name: 'Mon', clean: 0, violations: 0 },
+  { name: 'Tue', clean: 0, violations: 0 },
+  { name: 'Wed', clean: 0, violations: 0 },
+  { name: 'Thu', clean: 0, violations: 0 },
+  { name: 'Fri', clean: 0, violations: 0 },
+  { name: 'Sat', clean: 0, violations: 0 },
+  { name: 'Sun', clean: 0, violations: 0 },
 ];
 
 const StatCard = ({ title, value, change, icon: Icon, colorClass, glowClass }) => {
@@ -45,7 +45,8 @@ export default function Dashboard() {
     totalAssets: 0,
     totalViolations: 0,
     activeThreats: 0,
-    takedowns: 0
+    takedowns: 0,
+    apiUnitsUsed: 0
   });
   const [recentViolations, setRecentViolations] = useState([]);
   const [scanning, setScanning] = useState(false);
@@ -67,7 +68,9 @@ export default function Dashboard() {
           totalAssets: assets.length,
           totalViolations: violations.length,
           activeThreats: violations.filter(v => v.status === 'detected').length,
-          takedowns: violations.filter(v => v.status === 'dmca_sent').length
+          takedowns: violations.filter(v => v.status === 'dmca_sent').length,
+          apiUnitsUsed: scansRes.data?.usage_summary?.total_scans > 0 ? 
+                        (scansRes.data.usage_summary.serpapi_units_used + scansRes.data.usage_summary.youtube_units_used) : 0
         });
         
         setRecentViolations(violations.slice(0, 6));
@@ -155,8 +158,8 @@ export default function Dashboard() {
         </div>
         <div className="flex gap-3">
           <div className="flex flex-col items-end justify-center mr-4">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active Credits</span>
-            <span className="text-sm font-black text-white">42,900 / 50,000</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">API Calls (This Month)</span>
+            <span className="text-sm font-black text-white">{stats.apiUnitsUsed} / 50,000</span>
           </div>
           {scanning ? (
             <button 
@@ -181,7 +184,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Protected Assets" 
-          value={stats.totalAssets || 124} 
+          value={stats.totalAssets} 
           change={12} 
           icon={CheckCircle2} 
           colorClass="text-emerald"
@@ -189,7 +192,7 @@ export default function Dashboard() {
         />
         <StatCard 
           title="Total Violations" 
-          value={stats.totalViolations || 382} 
+          value={stats.totalViolations} 
           change={5} 
           icon={AlertTriangle} 
           colorClass="text-amber"
@@ -197,7 +200,7 @@ export default function Dashboard() {
         />
         <StatCard 
           title="Active Threats" 
-          value={stats.activeThreats || 42} 
+          value={stats.activeThreats} 
           change={-8} 
           icon={ShieldAlert} 
           colorClass="text-crimson"
@@ -205,7 +208,7 @@ export default function Dashboard() {
         />
         <StatCard 
           title="Successful Takedowns" 
-          value={stats.takedowns || 156} 
+          value={stats.takedowns} 
           change={24} 
           icon={Activity} 
           colorClass="text-primary"
@@ -285,7 +288,7 @@ export default function Dashboard() {
                         {v.platform?.toLowerCase() === 'youtube' ? <Play size={10} /> : <Globe size={10} />}
                         {v.platform?.toUpperCase()}
                       </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">{v.detected_at?.split('T')[1].slice(0, 5) || '14:20'}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">{v.detected_at?.split('T')[1].slice(0, 5) || '--:--'}</span>
                     </div>
                     <div className="flex gap-3">
                       <div className="w-12 h-12 rounded-lg bg-surface-hover shrink-0 overflow-hidden border border-border-base">
