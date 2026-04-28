@@ -277,7 +277,25 @@ class ScannerService:
                     break
 
             if not local_path:
-                logger.info(f"[{asset.asset_id}] Web result {idx+1}: SKIP (all downloads blocked) {url[:60]}")
+                logger.info(f"[{asset.asset_id}] Web result {idx+1}: Downloads blocked, logging as visual match via SerpApi")
+                c_info = class_map.get(url, {})
+                
+                violation = Violation(
+                    asset_id=asset.id,
+                    source_url=url,
+                    platform="web",
+                    domain=result.get("domain"),
+                    confidence_score=0.85,
+                    watermark_match=False,
+                    phash_distance=None,
+                    classification=c_info.get("category", "unclassified"),
+                    classification_reason="Visual match via Google Reverse Image Search. Forensic download blocked by CDN.",
+                    thumbnail_url=thumbnail,
+                    geo_location=result.get("geo")
+                )
+                db.session.add(violation)
+                created += 1
+                logger.info(f"[{asset.asset_id}] Web result {idx+1}: VIOLATION CREATED (Visual Match) → {url[:60]}")
                 continue
 
             v_res = VerificationService.verify_content(local_path, asset.asset_id, asset.phash)
