@@ -253,8 +253,11 @@ class ScannerService:
                 continue
 
             # Step 11 implementation: Download and Verify
+            # Priority: direct image URL > thumbnail > page URL (likely HTML)
             candidate_urls = []
-            if thumbnail:
+            if result.get("original"):
+                candidate_urls.append(result["original"])
+            if thumbnail and thumbnail not in candidate_urls:
                 candidate_urls.append(thumbnail)
             if url and url not in candidate_urls:
                 candidate_urls.append(url)

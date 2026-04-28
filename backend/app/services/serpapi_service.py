@@ -75,6 +75,7 @@ class SerpApiService:
                     "domain": parsed.netloc,
                     "title": item.get("title", ""),
                     "thumbnail": item.get("thumbnail", None),
+                    "original": item.get("original", None),
                     "source": item.get("source", ""),
                     "geo": None,  # SerpApi doesn't provide geo directly
                     "asset_id": asset_id,

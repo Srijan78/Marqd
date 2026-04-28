@@ -132,7 +132,7 @@ class YouTubeService:
             return []
 
     @staticmethod
-    def extract_frames(video_id: str, max_frames: int = 5) -> list[str]:
+    def extract_frames(video_id: str, max_frames: int = 3) -> list[str]:
         """
         Extract keyframes from a YouTube video by downloading thumbnails.
 
@@ -178,32 +178,32 @@ class YouTubeService:
         return frame_paths
 
     @staticmethod
-    def _real_extract_frames(video_id: str, max_frames: int = 5) -> list[str]:
+    def _real_extract_frames(video_id: str, max_frames: int = 3) -> list[str]:
         """Extract real frames from YouTube using direct thumbnail downloads."""
         try:
             temp_dir = current_app.config["TEMP_FOLDER"]
             os.makedirs(temp_dir, exist_ok=True)
 
-            # Prioritize maxresdefault.jpg (1080p) as blind-watermark requires a large enough image to extract a 128x128 watermark
+            # Only the 3 most reliable thumbnail resolutions
             thumbnail_urls = [
                 f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
                 f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
-                f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
-                f"https://img.youtube.com/vi/{video_id}/1.jpg",
-                f"https://img.youtube.com/vi/{video_id}/2.jpg",
-                f"https://img.youtube.com/vi/{video_id}/3.jpg",
             ]
 
             frame_paths = []
-            
+
             for i, url in enumerate(thumbnail_urls):
                 if len(frame_paths) >= max_frames:
                     break
-                    
+
                 try:
                     response = requests.get(url, timeout=10)
                     if response.status_code == 200:
+                        content_type = response.headers.get("Content-Type", "").lower()
+                        if "image" not in content_type:
+                            logger.warning(f"Skipping non-image thumbnail {url} (Content-Type: {content_type})")
+                            continue
                         path = os.path.join(temp_dir, f"frame_{video_id}_{i}.jpg")
                         with open(path, 'wb') as f:
                             f.write(response.content)

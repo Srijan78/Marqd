@@ -111,31 +111,51 @@ class VerificationService:
                 "watermark_match": True,
             }
 
-        # 1. Check Watermark
-        wm_result = WatermarkService.verify_watermark(image_path, expected_asset_id)
-
-        # 2. Check pHash (if provided)
+        # STEP 1: Fast pHash gate (microseconds)
+        # If we have a reference pHash and the image is clearly not a match,
+        # skip the expensive watermark decode entirely.
         phash_result = {"distance": None, "similarity": 0.0, "is_match": False}
         if original_phash:
             phash_result = HashingService.compare_image_to_hash(image_path, original_phash)
 
-        # 3. Calculate overall confidence
-        is_match = False
-        confidence = 0.0
+            # Hard reject: Hamming distance > 15 means clearly different image
+            if phash_result["distance"] is not None and phash_result["distance"] > 15:
+                return {
+                    "match": False,
+                    "extracted_id": None,
+                    "confidence": 0.0,
+                    "phash_distance": phash_result["distance"],
+                    "watermark_match": False,
+                }
 
+        # STEP 2: Watermark decode — only runs if pHash didn't hard-reject (seconds)
+        wm_result = WatermarkService.verify_watermark(image_path, expected_asset_id)
+
+        # STEP 3: Watermark confirmed — highest confidence
         if wm_result["match"]:
-            is_match = True
-            confidence = max(0.8, wm_result["confidence"])
+            return {
+                "match": True,
+                "extracted_id": wm_result["extracted_id"],
+                "confidence": max(0.8, wm_result["confidence"]),
+                "phash_distance": phash_result["distance"],
+                "watermark_match": True,
+            }
 
-        elif phash_result["is_match"]:
-            # Fallback to pHash if watermark was destroyed/cropped
-            is_match = True
-            confidence = max(0.5, phash_result["similarity"] * 0.8)
+        # STEP 4: pHash fallback — watermark failed but image looks similar
+        if original_phash and phash_result["is_match"]:
+            return {
+                "match": True,
+                "extracted_id": wm_result["extracted_id"],
+                "confidence": max(0.5, phash_result["similarity"] * 0.8),
+                "phash_distance": phash_result["distance"],
+                "watermark_match": False,
+            }
 
         return {
-            "match": is_match,
+            "match": False,
             "extracted_id": wm_result["extracted_id"],
-            "confidence": confidence,
+            "confidence": 0.0,
             "phash_distance": phash_result["distance"],
-            "watermark_match": wm_result["match"],
+            "watermark_match": False,
         }
+
