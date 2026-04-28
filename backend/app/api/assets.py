@@ -205,6 +205,53 @@ def delete_asset(asset_db_id):
         return jsonify({"error": "Deletion failed. Please try again."}), 500
 
 
+@assets_bp.route("/assets/<asset_id>/download", methods=["GET"])
+def download_asset(asset_id):
+    """Proxy download to bypass GCS CORS and trigger Save As."""
+    asset = Asset.query.filter_by(asset_id=asset_id).first()
+    if not asset:
+        return jsonify({"error": "Asset not found"}), 404
+
+    url = asset.watermarked_url
+    if not url:
+        return jsonify({"error": "No file available"}), 404
+
+    try:
+        if url.startswith("http"):
+            # It's an external URL (like GCS)
+            import requests
+            from flask import Response
+            req = requests.get(url, stream=True)
+            return Response(
+                req.iter_content(chunk_size=8192),
+                content_type=req.headers['content-type'],
+                headers={
+                    "Content-Disposition": f"attachment; filename=marqd_{asset.file_name}"
+                }
+            )
+        else:
+            # It's a local file
+            from flask import send_from_directory, current_app
+            import os
+            
+            # url is like /uploads/assets/watermarked/xyz.jpg
+            # Remove the /uploads/ prefix to get the relative path
+            rel_path = url.replace("/uploads/", "", 1)
+            upload_dir = current_app.config["UPLOAD_FOLDER"]
+            directory = os.path.dirname(os.path.join(upload_dir, rel_path))
+            filename = os.path.basename(rel_path)
+            
+            return send_from_directory(
+                directory, 
+                filename, 
+                as_attachment=True, 
+                download_name=f"marqd_{asset.file_name}"
+            )
+    except Exception as e:
+        logger.error(f"Failed to proxy download for {asset_id}: {e}")
+        return jsonify({"error": "Download failed"}), 500
+
+
 @assets_bp.route("/uploads/<path:filename>", methods=["GET"])
 def serve_upload(filename):
     """Serve uploaded files in development mode."""

@@ -61,9 +61,8 @@ export default function AssetRegistry() {
     const assetId = asset.id;
     setDownloadStates(prev => ({ ...prev, [assetId]: 'loading' }));
     try {
-      const url = asset.watermarked_url?.startsWith('http')
-        ? asset.watermarked_url
-        : `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'}${asset.watermarked_url || ''}`;
+      // Proxy the download through our backend to bypass Google Cloud Storage CORS
+      const url = `/assets/${asset.asset_id}/download`;
         
       const response = await api.get(url, { responseType: 'blob' });
       
